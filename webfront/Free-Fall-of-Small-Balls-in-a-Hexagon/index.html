@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>规则六边形中的小球自由落体物理模拟</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    /* 基础样式与布局（KISS） */
+    :root{
+      --bg:#f5f7fb;
+      --fg:#222;
+      --muted:#5b6780;
+      --panel:#ffffff;
+      --line:#1f2a44;
+      --accent:#4f46e5;
+      --accent-weak:#a5b4fc;
+      --border:#e6e9f2;
+    }
+    *{ box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font: 14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, "PingFang SC", "Noto Sans CJK SC", "Microsoft Yahei", Arial, sans-serif;
+    }
+    .app {
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      padding: 16px;
+    }
+    .title {
+      font-weight: 700;
+      letter-spacing: .2px;
+    }
+    .panel {
+      width: 960px;
+      max-width: 96vw;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 6px 18px rgba(31,42,68,.06);
+      padding: 14px 16px;
+    }
+    .stats {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      color: var(--muted);
+    }
+    .stats .chip {
+      background: #f0f3fb;
+      color: #25304d;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      font-weight: 600;
+      letter-spacing: .2px;
+    }
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 10px 14px;
+      align-items: end;
+    }
+    .control {
+      grid-column: span 4;
+      display: grid;
+      gap: 6px;
+    }
+    .control.wide { grid-column: span 8; }
+    .control label {
+      display: flex;
+      justify-content: space-between;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .control input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+    .control input[type="number"]{
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #f9fbff;
+      color: var(--fg);
+      outline: none;
+    }
+    .buttons {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      appearance: none;
+      border: 1px solid var(--border);
+      padding: 8px 14px;
+      border-radius: 10px;
+      background: #eef2ff;
+      color: var(--line);
+      font-weight: 700;
+      cursor: pointer;
+      transition: .15s ease;
+    }
+    .btn:hover { filter: brightness(.98); transform: translateY(-1px); }
+    .btn.primary { background: var(--accent); color: #fff; border-color: transparent; }
+    .btn.ghost { background: #fff; }
+
+    .stage {
+      width: 960px;
+      max-width: 96vw;
+      aspect-ratio: 1/1;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 8px 28px rgba(31,42,68,.08);
+      display: grid;
+      place-items: center;
+      padding: 6px;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border-radius: 12px;
+      background:
+        radial-gradient(1200px 800px at 10% 20%, #f9fbff 0%, #ffffff 50%, #fafbfe 100%);
+    }
+
+    @media (max-width: 680px) {
+      .controls { grid-template-columns: repeat(6, 1fr); }
+      .control { grid-column: span 6; }
+      .control.wide { grid-column: span 6; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="title">规则六边形中的小球自由落体（Canvas 物理模拟）</div>
+
+    <!-- 参数与状态显示面板 -->
+    <div class="panel">
+      <div class="stats" id="stats">
+        <span class="chip">小球数量: <strong id="statCount">-</strong></span>
+        <span class="chip">重力: <strong id="statGravity">-</strong> px/s²</span>
+        <span class="chip">弹性系数: <strong id="statRestitution">-</strong></span>
+        <span class="chip">FPS: <strong id="statFPS">-</strong></span>
+      </div>
+      <div class="controls" style="margin-top: 10px;">
+        <div class="control wide">
+          <label>
+            <span>重力大小（px/s²）</span>
+            <span id="labelGravity">800</span>
+          </label>
+          <input id="gravity" type="range" min="0" max="3000" step="10" value="800" />
+        </div>
+        <div class="control wide">
+          <label>
+            <span>弹性系数（0=无反弹, 1=完全弹性）</span>
+            <span id="labelRestitution">0.85</span>
+          </label>
+          <input id="restitution" type="range" min="0" max="1" step="0.01" value="0.85" />
+        </div>
+        <div class="control">
+          <label>
+            <span>小球数量</span>
+            <span id="labelCount">20</span>
+          </label>
+          <input id="count" type="number" min="1" max="200" step="1" value="20" />
+        </div>
+        <div class="buttons">
+          <button id="toggle" class="btn">暂停</button>
+          <button id="reset" class="btn primary">重置</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 画布舞台 -->
+    <div class="stage">
+      <canvas id="canvas"></canvas>
+    </div>
+  </div>
+
+  <script>
+  "use strict";
+  // 说明：
+  // - 仅原生 HTML/CSS/JS（KISS），单文件可直接保存为 .html 打开
+  // - 类结构：Ball（小球）、Hexagon（规则六边形）、Game（游戏主控）
+  // - 物理：重力加速度、边界弹性碰撞、小球-小球弹性碰撞（等质量交换法线速度分量）
+  // - 动画：requestAnimationFrame + 基于 delta time 的一致性更新
+
+  // 工具函数
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+  const randRange = (a, b) => a + Math.random() * (b - a);
+  const hypot = (x, y) => Math.hypot(x, y);
+  const now = () => performance.now();
+
+  // 颜色方案（HSL 不同色相）
+  function colorByIndex(i, total) {
+    const h = (i * (360 / Math.max(total, 8)) + 10) % 360;
+    return `hsl(${h} 80% 55%)`;
+  }
+
+  // 计算线段上离点最近点
+  function closestPointOnSegment(px, py, ax, ay, bx, by) {
+    const abx = bx - ax, aby = by - ay;
+    const apx = px - ax, apy = py - ay;
+    const ab2 = abx*abx + aby*aby || 1e-12;
+    let t = (apx*abx + apy*aby) / ab2;
+    t = clamp(t, 0, 1);
+    return { x: ax + abx * t, y: ay + aby * t, t };
+  }
+
+  // 小球类
+  class Ball {
+    /**
+     * @param {number} x 初始 x
+     * @param {number} y 初始 y
+     * @param {number} r 半径
+     * @param {string} color 填充色
+     */
+    constructor(x, y, r, color) {
+      this.x = x;
+      this.y = y;
+      this.vx = randRange(-60, 60); // 给一点初速度，利于演示
+      this.vy = randRange(-60, 60);
+      this.r = r;
+      this.color = color;
+    }
+
+    // 速度、位置更新（dt: 秒）
+    integrate(dt, gravity) {
+      this.vy += gravity * dt;
+      this.x += this.vx * dt;
+      this.y += this.vy * dt;
+    }
+
+    draw(ctx) {
+      ctx.beginPath();
+      ctx.fillStyle = this.color;
+      ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 轻微描边增强层次
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "rgba(0,0,0,0.1)";
+      ctx.stroke();
+    }
+  }
+
+  // 规则六边形边界
+  class Hexagon {
+    /**
+     * @param {number} cx 中心 x
+     * @param {number} cy 中心 y
+     * @param {number} R  外接圆半径（顶点到中心的距离）
+     */
+    constructor(cx, cy, R) {
+      this.cx = cx;
+      this.cy = cy;
+      this.R = R;
+      this.vertices = this.buildVertices();
+      this.edges = this.buildEdges();
+    }
+
+    // 平顶六边形（顶/底边水平）：角度 0°,60°,120°,180°,240°,300°
+    buildVertices() {
+      const vs = [];
+      for (let i = 0; i < 6; i++) {
+        const a = i * Math.PI / 3; // 0,60,120...
+        vs.push({
+          x: this.cx + this.R * Math.cos(a),
+          y: this.cy + this.R * Math.sin(a)
+        });
+      }
+      return vs;
+    }
+
+    buildEdges() {
+      const es = [];
+      for (let i = 0; i < 6; i++) {
+        const a = this.vertices[i];
+        const b = this.vertices[(i + 1) % 6];
+        es.push({ a, b });
+      }
+      return es;
+    }
+
+    draw(ctx) {
+      ctx.beginPath();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "#1f2a44";
+      ctx.moveTo(this.vertices[0].x, this.vertices[0].y);
+      for (let i = 1; i < 6; i++) {
+        ctx.lineTo(this.vertices[i].x, this.vertices[i].y);
+      }
+      ctx.closePath();
+      ctx.stroke();
+    }
+
+    // 圆（小球）与六边形边界碰撞响应：位置修正 + 速度反射（弹性系数 e）
+    resolveBallBoundary(ball, restitution) {
+      const b = ball;
+      const e = restitution;
+
+      // 对每条边进行最近点检测
+      for (let i = 0; i < this.edges.length; i++) {
+        const { a, b: bb } = this.edges[i];
+        const cp = closestPointOnSegment(b.x, b.y, a.x, a.y, bb.x, bb.y);
+        const dx = b.x - cp.x;
+        const dy = b.y - cp.y;
+        let dist = Math.hypot(dx, dy);
+
+        if (dist < b.r - 1e-9) {
+          // 法线方向（由边指向球心的单位向量）
+          let nx, ny;
+          if (dist > 1e-9) {
+            nx = dx / dist;
+            ny = dy / dist;
+          } else {
+            // 极小距离时，回退用六边形中心方向（稳定）
+            const vx = b.x - this.cx;
+            const vy = b.y - this.cy;
+            const vlen = Math.hypot(vx, vy) || 1;
+            nx = vx / vlen;
+            ny = vy / vlen;
+            dist = 0;
+          }
+
+          // 位置修正：推出边界
+          const penetration = b.r - dist;
+          b.x += nx * penetration;
+          b.y += ny * penetration;
+
+          // 速度反射（仅当正朝向边界移动时）
+          const vn = b.vx * nx + b.vy * ny; // 沿法线分量
+          if (vn < 0) {
+            // v' = v - (1+e)*vn*n
+            b.vx -= (1 + e) * vn * nx;
+            b.vy -= (1 + e) * vn * ny;
+          }
+        }
+      }
+    }
+  }
+
+  // 主控制器
+  class Game {
+    constructor(canvas) {
+      this.canvas = canvas;
+      this.ctx = canvas.getContext("2d");
+      this.dpr = Math.max(1, window.devicePixelRatio || 1);
+
+      this.gravity = 800;        // px/s²
+      this.restitution = 0.85;   // 边界反弹系数
+      this.count = 20;           // 小球数量
+
+      this.running = true;
+      this.balls = [];
+      this.hex = null;
+
+      this.lastTime = 0;
+      this.fps = 0;
+      this._frameHandle = null;
+
+      this.resize();
+      this.resetBalls();
+
+      window.addEventListener("resize", () => {
+        this.resize();
+        // 六边形、球的位置不重建，只更新绘制尺度
+      });
+    }
+
+    // 统一处理高 DPI 的画布尺寸和坐标系缩放
+    resize() {
+      const rect = this.canvas.getBoundingClientRect();
+      const w = Math.max(320, Math.floor(rect.width));
+      const h = Math.max(320, Math.floor(rect.height));
+
+      this.canvas.width = Math.round(w * this.dpr);
+      this.canvas.height = Math.round(h * this.dpr);
+
+      this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+      this.ctx.scale(this.dpr, this.dpr);
+
+      // 在画布中居中放置一个尽可能大的规则六边形（留 28px 内边距）
+      const pad = 28;
+      const cx = w / 2;
+      const cy = h / 2;
+      const R = Math.max(40, Math.min(w, h) / 2 - pad);
+
+      this.hex = new Hexagon(cx, cy, R);
+      // 保存界限（用于生成时的安全内接圆半径）
+      this.inradius = R * Math.sqrt(3) / 2; // 内切圆半径（apothem）
+      this.width = w;
+      this.height = h;
+    }
+
+    // 重新生成小球（根据 this.count）
+    resetBalls() {
+      const balls = [];
+      const maxTries = 1500;
+      const minR = 10, maxR = 18;
+
+      for (let i = 0; i < this.count; i++) {
+        const r = randRange(minR, maxR);
+        const color = colorByIndex(i, this.count);
+
+        let placed = false;
+        for (let t = 0; t < maxTries && !placed; t++) {
+          // 在六边形内切圆中随机采样（保证在边界内留半径安全距离）
+          const rr = randRange(0, this.inradius - r - 2);
+          const theta = randRange(0, Math.PI * 2);
+          const x = this.hex.cx + rr * Math.cos(theta);
+          const y = this.hex.cy + rr * Math.sin(theta);
+
+          // 与已有小球不重叠
+          let ok = true;
+          for (const b of balls) {
+            const d2 = (x - b.x) ** 2 + (y - b.y) ** 2;
+            const rr2 = (r + b.r + 0.5) ** 2;
+            if (d2 < rr2) { ok = false; break; }
+          }
+
+          if (ok) {
+            const ball = new Ball(x, y, r, color);
+            balls.push(ball);
+            placed = true;
+          }
+        }
+
+        // 若超时仍无法放置，则缩减数量（极端密集情况）
+        if (!placed) break;
+      }
+
+      this.balls = balls;
+    }
+
+    // 小球-小球弹性碰撞（等质量：交换法线速度分量）
+    resolveBallBall() {
+      const N = this.balls.length;
+      for (let i = 0; i < N; i++) {
+        for (let j = i + 1; j < N; j++) {
+          const a = this.balls[i], b = this.balls[j];
+          const dx = b.x - a.x, dy = b.y - a.y;
+          let dist = Math.hypot(dx, dy);
+          const minDist = a.r + b.r;
+
+          if (dist < minDist && dist > 0) {
+            const nx = dx / dist, ny = dy / dist;
+
+            // 位置分离（各退一半）
+            const overlap = (minDist - dist);
+            const sep = overlap * 0.5;
+            a.x -= nx * sep; a.y -= ny * sep;
+            b.x += nx * sep; b.y += ny * sep;
+
+            // 速度交换（法线分量）
+            const avn = a.vx * nx + a.vy * ny;
+            const bvn = b.vx * nx + b.vy * ny;
+            // 切向分量保持
+            const a_t_x = a.vx - avn * nx, a_t_y = a.vy - avn * ny;
+            const b_t_x = b.vx - bvn * nx, b_t_y = b.vy - bvn * ny;
+
+            // 完全弹性（等质量）：交换法线分量
+            a.vx = a_t_x + bvn * nx;
+            a.vy = a_t_y + bvn * ny;
+            b.vx = b_t_x + avn * nx;
+            b.vy = b_t_y + avn * ny;
+          } else if (dist === 0) {
+            // 极少数完全重合：随机扰动打散
+            const angle = Math.random() * Math.PI * 2;
+            const push = 0.5 * minDist;
+            a.x -= Math.cos(angle) * push;
+            a.y -= Math.sin(angle) * push;
+            b.x += Math.cos(angle) * push;
+            b.y += Math.sin(angle) * push;
+          }
+        }
+      }
+    }
+
+    // 单帧更新
+    update(dt) {
+      const clamped = Math.min(dt, 0.04); // 防止卡顿后穿透
+      for (const b of this.balls) {
+        b.integrate(clamped, this.gravity);
+      }
+      // 边界处理
+      for (const b of this.balls) {
+        this.hex.resolveBallBoundary(b, this.restitution);
+      }
+      // 小球间碰撞
+      this.resolveBallBall();
+    }
+
+    // 绘制
+    draw() {
+      const ctx = this.ctx;
+      ctx.clearRect(0, 0, this.width, this.height);
+
+      // 边界
+      this.hex.draw(ctx);
+
+      // 小球
+      for (const b of this.balls) {
+        b.draw(ctx);
+      }
+    }
+
+    // 动画主循环
+    loop = (t) => {
+      if (!this.running) return;
+
+      if (this.lastTime === 0) this.lastTime = t;
+      const dt = (t - this.lastTime) / 1000;
+      this.lastTime = t;
+
+      // FPS 统计（平滑）
+      const instFPS = dt > 1e-6 ? (1 / dt) : 0;
+      this.fps = this.fps * 0.9 + instFPS * 0.1;
+
+      this.update(dt);
+      this.draw();
+      this._frameHandle = requestAnimationFrame(this.loop);
+    };
+
+    start() {
+      if (!this.running) {
+        this.running = true;
+        this.lastTime = 0;
+        this._frameHandle = requestAnimationFrame(this.loop);
+      }
+    }
+    stop() {
+      this.running = false;
+      if (this._frameHandle) cancelAnimationFrame(this._frameHandle);
+      this._frameHandle = null;
+    }
+  }
+
+  // 绑定 UI 并启动
+  (function main() {
+    const canvas = document.getElementById("canvas");
+    const game = new Game(canvas);
+
+    // UI 元素
+    const elStatCount = document.getElementById("statCount");
+    const elStatGravity = document.getElementById("statGravity");
+    const elStatRest = document.getElementById("statRestitution");
+    const elStatFPS = document.getElementById("statFPS");
+
+    const elLabelG = document.getElementById("labelGravity");
+    const elLabelE = document.getElementById("labelRestitution");
+    const elLabelC = document.getElementById("labelCount");
+
+    const inputG = document.getElementById("gravity");
+    const inputE = document.getElementById("restitution");
+    const inputC = document.getElementById("count");
+    const btnToggle = document.getElementById("toggle");
+    const btnReset = document.getElementById("reset");
+
+    // 同步显示
+    function refreshStats() {
+      elStatCount.textContent = String(game.balls.length);
+      elStatGravity.textContent = String(game.gravity.toFixed(0));
+      elStatRest.textContent = String(game.restitution.toFixed(2));
+      elStatFPS.textContent = game.fps > 1 ? String(Math.round(game.fps)) : "-";
+    }
+    function syncLabels() {
+      elLabelG.textContent = String(Math.round(game.gravity));
+      elLabelE.textContent = String(game.restitution.toFixed(2));
+      elLabelC.textContent = String(game.count);
+    }
+
+    // 控件事件
+    inputG.addEventListener("input", () => {
+      game.gravity = Number(inputG.value);
+      refreshStats(); syncLabels();
+    });
+    inputE.addEventListener("input", () => {
+      game.restitution = Number(inputE.value);
+      refreshStats(); syncLabels();
+    });
+    inputC.addEventListener("input", () => {
+      const v = clamp(Number(inputC.value || 1), 1, 200);
+      game.count = v;
+      inputC.value = String(v);
+      refreshStats(); syncLabels();
+    });
+
+    btnToggle.addEventListener("click", () => {
+      if (game.running) {
+        game.stop();
+        btnToggle.textContent = "继续";
+        btnToggle.classList.add("ghost");
+      } else {
+        game.start();
+        btnToggle.textContent = "暂停";
+        btnToggle.classList.remove("ghost");
+      }
+    });
+
+    btnReset.addEventListener("click", () => {
+      game.resetBalls();
+      refreshStats(); syncLabels();
+      // 若处于暂停，画一帧以更新画面
+      if (!game.running) {
+        game.draw();
+      }
+    });
+
+    // 初始值同步
+    inputG.value = String(game.gravity);
+    inputE.value = String(game.restitution);
+    inputC.value = String(game.count);
+    syncLabels();
+    refreshStats();
+
+    // 启动动画循环与状态刷新
+    function statTicker() {
+      refreshStats();
+      setTimeout(statTicker, 250);
+    }
+    statTicker();
+    game.start();
+  })();
+  </script>
+</body>
+</html>

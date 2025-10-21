@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>3x3 魔方模拟器（纯 HTML/CSS/JS）</title>
+  <style>
+    :root {
+      --size: 48px;           /* 单个小方块尺寸 */
+      --gap: 4px;             /* 小方块间距（视觉缝隙）*/
+      --step: calc(var(--size) + var(--gap));
+      --sticker-pad: 4px;     /* 贴纸边距 */
+      --bg: #0b0e12;
+      --panel: #121820;
+      --text: #e7edf5;
+      --muted: #9fb2c7;
+      --edge: #1a212b;
+      --cubie: #0a0d12;
+      --cubie-edge: #0f1520;
+      --u: #ffffff; /* 上：白 */
+      --d: #ffd500; /* 下：黄 */
+      --l: #ff8c00; /* 左：橙 */
+      --r: #d70000; /* 右：红 */
+      --f: #009b48; /* 前：绿 */
+      --b: #0046ad; /* 后：蓝 */
+      --shadow: 0 10px 30px rgba(0,0,0,.4), inset 0 0 0 1px rgba(255,255,255,.03);
+    }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: radial-gradient(1200px 800px at 50% 10%, #10161f 0%, #0a0f15 60%, #070b10 100%);
+      color: var(--text);
+      font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "PingFang SC", "Noto Sans CJK SC", "Microsoft Yahei", sans-serif;
+      user-select: none;
+    }
+    #app {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      height: 100%;
+    }
+    #controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 12px 14px;
+      background: linear-gradient(180deg, #0e141c, #0c1118);
+      border-bottom: 1px solid #0f1823;
+      box-shadow: var(--shadow);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .group {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding-right: 10px;
+      border-right: 1px solid #0f1823;
+      margin-right: 6px;
+    }
+    button {
+      appearance: none;
+      border: 1px solid #1a2330;
+      background: linear-gradient(180deg, #17202b, #121a23);
+      color: var(--text);
+      padding: 6px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+      transition: transform .05s ease, background .2s ease, border-color .2s ease;
+    }
+    button:hover { border-color: #2a394d; }
+    button:active { transform: translateY(1px) scale(0.99); }
+    #scene {
+      position: relative;
+      overflow: hidden;
+      height: calc(100vh - 64px);
+      display: grid;
+      place-items: center;
+      perspective: 1200px;
+      background: radial-gradient(1200px 800px at 50% 20%, #0b0f16 0%, #090d13 60%, #080b10 100%);
+    }
+    #viewport {
+      width: 560px;
+      height: 560px;
+      position: relative;
+      transform-style: preserve-3d;
+    }
+    #cube {
+      position: absolute;
+      inset: 0;
+      margin: auto;
+      width: calc(var(--step) * 3);
+      height: calc(var(--step) * 3);
+      transform-style: preserve-3d;
+      transition: transform .2s ease-out;
+    }
+    .cubie {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: var(--size);
+      height: var(--size);
+      transform-style: preserve-3d;
+      margin: calc(var(--size) / -2) 0 0 calc(var(--size) / -2);
+      box-sizing: border-box;
+      /* 暗色外壳效果：六面体通过面片体现 */
+    }
+    .face {
+      position: absolute;
+      width: var(--size);
+      height: var(--size);
+      background: var(--cubie);
+      box-shadow: 0 0 0 1px var(--cubie-edge), inset 0 0 20px rgba(0,0,0,.25);
+      display: grid;
+      place-items: center;
+    }
+    .sticker {
+      width: calc(var(--size) - var(--sticker-pad)*2);
+      height: calc(var(--size) - var(--sticker-pad)*2);
+      border-radius: 6px;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,.25), 0 2px 6px rgba(0,0,0,.25);
+      background: #222;
+    }
+    .face.up    { transform: rotateX(90deg) translateZ(calc(var(--size) / 2)); transform-origin: 50% 50%; }
+    .face.down  { transform: rotateX(-90deg) translateZ(calc(var(--size) / 2)); transform-origin: 50% 50%; }
+    .face.left  { transform: rotateY(-90deg) translateZ(calc(var(--size) / 2)); transform-origin: 50% 50%; }
+    .face.right { transform: rotateY(90deg) translateZ(calc(var(--size) / 2)); transform-origin: 50% 50%; }
+    .face.front { transform: translateZ(calc(var(--size) / 2)); transform-origin: 50% 50%; }
+    .face.back  { transform: rotateY(180deg) translateZ(calc(var(--size) / 2)); transform-origin: 50% 50%; }
+
+    /* 旋转动画时的分组容器 */
+    .layer-wrapper {
+      position: absolute;
+      inset: 0;
+      transform-style: preserve-3d;
+      transition: transform 300ms ease-in-out;
+      pointer-events: none; /* 避免遮挡点击 */
+    }
+
+    /* 提示 */
+    #hint {
+      position: absolute;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: var(--muted);
+      font-size: 12px;
+      opacity: .85;
+      text-align: center;
+      pointer-events: none;
+      user-select: none;
+      text-shadow: 0 1px 2px rgba(0,0,0,.4);
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="controls">
+      <div class="group">
+        <button data-m="U">U</button>
+        <button data-m="U'">U'</button>
+        <button data-m="D">D</button>
+        <button data-m="D'">D'</button>
+      </div>
+      <div class="group">
+        <button data-m="L">L</button>
+        <button data-m="L'">L'</button>
+        <button data-m="R">R</button>
+        <button data-m="R'">R'</button>
+      </div>
+      <div class="group">
+        <button data-m="F">F</button>
+        <button data-m="F'">F'</button>
+        <button data-m="B">B</button>
+        <button data-m="B'">B'</button>
+      </div>
+      <div class="group">
+        <button id="shuffle">打乱</button>
+        <button id="reset">重置</button>
+      </div>
+    </div>
+
+    <div id="scene">
+      <div id="viewport">
+        <div id="cube"></div>
+      </div>
+      <div id="hint">拖拽旋转视角 · 双击复位视角 · 滚轮缩放</div>
+    </div>
+  </div>
+
+  <script>
+    // 基础参数
+    const SIZE = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--size'));
+    const STEP = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--step'));
+
+    const cubeEl = document.getElementById('cube');
+    const viewportEl = document.getElementById('viewport');
+
+    // 摄像机/视角
+    let cam = { x: -25, y: -35, z: 0, zoom: 1 };
+    function applyCamera() {
+      viewportEl.style.transform = `rotateX(${cam.x}deg) rotateY(${cam.y}deg) scale(${cam.zoom})`;
+    }
+    applyCamera();
+
+    // 拖拽旋转视角
+    (function enableDragRotate(){
+      let dragging = false; let lastX = 0, lastY = 0;
+      viewportEl.addEventListener('mousedown', (e)=>{
+        dragging = true; lastX = e.clientX; lastY = e.clientY; e.preventDefault();
+      });
+      window.addEventListener('mousemove', (e)=>{
+        if(!dragging) return;
+        const dx = e.clientX - lastX; const dy = e.clientY - lastY;
+        lastX = e.clientX; lastY = e.clientY;
+        cam.y += dx * 0.4; cam.x -= dy * 0.4;
+        cam.x = Math.max(-80, Math.min(80, cam.x));
+        applyCamera();
+      });
+      window.addEventListener('mouseup', ()=> dragging=false);
+      viewportEl.addEventListener('wheel', (e)=>{
+        const s = Math.exp(-e.deltaY * 0.001);
+        cam.zoom = Math.max(0.6, Math.min(1.6, cam.zoom * s));
+        applyCamera();
+      }, {passive:true});
+      viewportEl.addEventListener('dblclick', ()=>{ cam = {x:-25, y:-35, z:0, zoom:1}; applyCamera(); });
+    })();
+
+    // 方向与颜色
+    const FACE_COLORS = { up:'var(--u)', down:'var(--d)', left:'var(--l)', right:'var(--r)', front:'var(--f)', back:'var(--b)' };
+
+    // 世界向量表示：{axis:'x'|'y'|'z', sign:1|-1}
+    function vec(axis, sign){ return {axis, sign}; }
+
+    function equalVec(a,b){ return a.axis===b.axis && a.sign===b.sign; }
+
+    // 旋转世界向量：绕指定世界轴，dir=+1(顺时针从轴正向外看?)此处按右手系：+1=+90°
+    function rotateWorldVec(v, axis, dir){
+      const s = v.sign;
+      const a = v.axis;
+      if(axis==='x'){
+        if(a==='x') return vec('x', s);
+        if(a==='y') return vec(dir===+1 ? 'z' : 'z', dir===+1 ? s : -s);
+        if(a==='z') return vec(dir===+1 ? 'y' : 'y', dir===+1 ? -s : s);
+      }
+      if(axis==='y'){
+        if(a==='y') return vec('y', s);
+        // R_y(+90): x ->  z, z -> -x
+        if(a==='x') return vec('z', dir===+1 ?  s : -s);
+        if(a==='z') return vec('x', dir===+1 ? -s :  s);
+      }
+      if(axis==='z'){
+        if(a==='z') return vec('z', s);
+        // R_z(+90): x -> -y, y ->  x
+        if(a==='x') return vec('y', dir===+1 ? -s :  s);
+        if(a==='y') return vec('x', dir===+1 ?  s : -s);
+      }
+      return v;
+    }
+
+    // 坐标旋转（基于整数网格 -1,0,1）
+    function rotatePos(p, axis, dir){
+      let {x,y,z} = p;
+      if(axis==='x'){
+        if(dir===+1){ const ny = z, nz = -y; y=ny; z=nz; }
+        else { const ny = -z, nz = y; y=ny; z=nz; }
+      } else if(axis==='y'){
+        if(dir===+1){ const nx = z, nz = -x; x=nx; z=nz; }
+        else { const nx = -z, nz = x; x=nx; z=nz; }
+      } else if(axis==='z'){
+        if(dir===+1){ const nx = -y, ny = x; x=nx; y=ny; }
+        else { const nx = y, ny = -x; x=nx; y=ny; }
+      }
+      return {x,y,z};
+    }
+
+    // 立方块（Cubie）数据结构
+    const cubies = [];
+
+    function createCubie(x,y,z){
+      const el = document.createElement('div');
+      el.className = 'cubie';
+      el.style.transform = `translate3d(${x*STEP}px, ${-y*STEP}px, ${z*STEP}px)`;
+
+      // 6 个世界朝向的可见面（统一用世界方向命名），贴纸颜色由朝向映射决定
+      const faces = {};
+      ['up','down','left','right','front','back'].forEach(name=>{
+        const f = document.createElement('div');
+        f.className = `face ${name}`;
+        const s = document.createElement('div');
+        s.className = 'sticker';
+        f.appendChild(s);
+        el.appendChild(f);
+        faces[name] = { faceEl: f, stickerEl: s };
+      });
+
+      // 该小方块固定携带的本地贴纸（只在初始处于外层的面才有颜色）
+      const localStickers = {};
+      if(y=== 1) localStickers.up = FACE_COLORS.up;
+      if(y===-1) localStickers.down = FACE_COLORS.down;
+      if(x=== 1) localStickers.right = FACE_COLORS.right;
+      if(x===-1) localStickers.left = FACE_COLORS.left;
+      if(z=== 1) localStickers.front = FACE_COLORS.front;
+      if(z===-1) localStickers.back = FACE_COLORS.back;
+
+      const orient = { x: vec('x', +1), y: vec('y', +1), z: vec('z', +1) }; // 本地 +轴 映射到 世界轴
+
+      const cubie = { el, pos:{x,y,z}, orient, faces, localStickers };
+      cubies.push(cubie);
+      cubeEl.appendChild(el);
+      updateCubieVisual(cubie);
+      return cubie;
+    }
+
+    function worldVecOfLocalFace(orient, localFace){
+      // 本地面 -> 本地轴与符号
+      if(localFace==='right') return orient.x;                 // +X
+      if(localFace==='left')  return vec(orient.x.axis, -orient.x.sign);
+      if(localFace==='up')    return orient.y;
+      if(localFace==='down')  return vec(orient.y.axis, -orient.y.sign);
+      if(localFace==='front') return orient.z;
+      if(localFace==='back')  return vec(orient.z.axis, -orient.z.sign);
+    }
+
+    function localFaceFromWorldVec(orient, world){
+      // 给定世界方向，反求是哪一个本地面
+      if(equalVec(orient.x, world)) return 'right';
+      if(equalVec(vec(orient.x.axis, -orient.x.sign), world)) return 'left';
+      if(equalVec(orient.y, world)) return 'up';
+      if(equalVec(vec(orient.y.axis, -orient.y.sign), world)) return 'down';
+      if(equalVec(orient.z, world)) return 'front';
+      if(equalVec(vec(orient.z.axis, -orient.z.sign), world)) return 'back';
+      return null;
+    }
+
+    function updateCubieVisual(c){
+      // 位置
+      c.el.style.transform = `translate3d(${c.pos.x*STEP}px, ${-c.pos.y*STEP}px, ${c.pos.z*STEP}px)`;
+
+      // 每个世界面的显隐与贴纸颜色
+      const showUp = c.pos.y===+1, showDown = c.pos.y===-1, showRight = c.pos.x===+1, showLeft = c.pos.x===-1, showFront = c.pos.z===+1, showBack = c.pos.z===-1;
+
+      const worldDirs = {
+        up:   vec('y', +1),
+        down: vec('y', -1),
+        right:vec('x', +1),
+        left: vec('x', -1),
+        front:vec('z', +1),
+        back: vec('z', -1),
+      };
+
+      const visibility = { up:showUp, down:showDown, right:showRight, left:showLeft, front:showFront, back:showBack };
+
+      for(const name of Object.keys(c.faces)){
+        const face = c.faces[name];
+        face.faceEl.style.display = visibility[name] ? 'grid' : 'none';
+        if(!visibility[name]) continue;
+        const localFace = localFaceFromWorldVec(c.orient, worldDirs[name]);
+        const color = localFace ? c.localStickers[localFace] : null;
+        face.stickerEl.style.background = color || '#202630';
+      }
+    }
+
+    function rotateCubieState(c, axis, dir){
+      // 位置
+      c.pos = rotatePos(c.pos, axis, dir);
+      // 方向（将本地 +轴映射到的世界向量，整体绕世界轴旋转）
+      c.orient = {
+        x: rotateWorldVec(c.orient.x, axis, dir),
+        y: rotateWorldVec(c.orient.y, axis, dir),
+        z: rotateWorldVec(c.orient.z, axis, dir),
+      };
+    }
+
+    function buildCube(){
+      // 清空
+      cubeEl.innerHTML = '';
+      cubies.length = 0;
+      for(let x=-1;x<=1;x++){
+        for(let y=-1;y<=1;y++){
+          for(let z=-1;z<=1;z++){
+            if(x===0 && y===0 && z===0) continue; // 中心空
+            createCubie(x,y,z);
+          }
+        }
+      }
+    }
+
+    buildCube();
+
+    // 动作定义：轴、层、方向（dir：+1=+90；-1=-90）。顺/逆定义采用“从该面的外侧看，顺时针=不带撇”。
+    const MOVES = {
+      "U":  { axis:'y', layer:+1, dir:-1 },
+      "U'": { axis:'y', layer:+1, dir:+1 },
+      "D":  { axis:'y', layer:-1, dir:+1 },
+      "D'": { axis:'y', layer:-1, dir:-1 },
+      "R":  { axis:'x', layer:+1, dir:-1 },
+      "R'": { axis:'x', layer:+1, dir:+1 },
+      "L":  { axis:'x', layer:-1, dir:+1 },
+      "L'": { axis:'x', layer:-1, dir:-1 },
+      "F":  { axis:'z', layer:+1, dir:-1 },
+      "F'": { axis:'z', layer:+1, dir:+1 },
+      "B":  { axis:'z', layer:-1, dir:+1 },
+      "B'": { axis:'z', layer:-1, dir:-1 },
+    };
+
+    let busy = false;
+    const queue = [];
+
+    function enqueueMove(name){
+      queue.push(name);
+      if(!busy) processQueue();
+    }
+
+    async function processQueue(){
+      if(busy) return; busy = true;
+      while(queue.length){
+        const m = queue.shift();
+        await doMove(m);
+      }
+      busy = false;
+    }
+
+    function selectLayer(axis, layer){
+      return cubies.filter(c => c.pos[axis] === layer);
+    }
+
+    function axisRotateCSS(axis, deg){
+      if(axis==='x') return `rotateX(${deg}deg)`;
+      if(axis==='y') return `rotateY(${deg}deg)`;
+      if(axis==='z') return `rotateZ(${deg}deg)`;
+      return '';
+    }
+
+    function doMove(name){
+      const def = MOVES[name];
+      if(!def) return Promise.resolve();
+      const {axis, layer, dir} = def;
+
+      // 包装层用于动画
+      const wrapper = document.createElement('div');
+      wrapper.className = 'layer-wrapper';
+      cubeEl.appendChild(wrapper);
+
+      const targets = selectLayer(axis, layer);
+      for(const c of targets){ wrapper.appendChild(c.el); }
+
+      return new Promise(resolve=>{
+        // 启动动画
+        requestAnimationFrame(()=>{
+          // 强制 reflow 后再设置旋转
+          void wrapper.offsetWidth;
+          wrapper.style.transform = axisRotateCSS(axis, dir*90);
+        });
+
+        const onEnd = ()=>{
+          wrapper.removeEventListener('transitionend', onEnd);
+
+          // 动画结束：复位 DOM 层级，更新状态与可视
+          for(const c of targets){ cubeEl.appendChild(c.el); }
+
+          // 应用逻辑旋转
+          for(const c of targets){ rotateCubieState(c, axis, dir); updateCubieVisual(c); }
+
+          // 移除包装
+          cubeEl.removeChild(wrapper);
+          resolve();
+        };
+        wrapper.addEventListener('transitionend', onEnd);
+      });
+    }
+
+    // 控件事件
+    document.querySelectorAll('#controls [data-m]').forEach(btn=>{
+      btn.addEventListener('click', ()=> enqueueMove(btn.dataset.m));
+    });
+
+    document.getElementById('reset').addEventListener('click', ()=>{
+      if(busy){ queue.length = 0; }
+      buildCube();
+    });
+
+    document.getElementById('shuffle').addEventListener('click', async ()=>{
+      if(busy) return; // 避免打乱中重复触发
+      const ops = Object.keys(MOVES);
+      const n = 25;
+      for(let i=0;i<n;i++){
+        const m = ops[Math.floor(Math.random()*ops.length)];
+        enqueueMove(m);
+      }
+    });
+  </script>
+</body>
+</html>

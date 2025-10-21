@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>动画天气卡片 · Webfront</title>
+  <meta name="color-scheme" content="dark light">
+  <style>
+    :root {
+      --bg-0: #0b0f14;
+      --bg-1: #0f1520;
+      --bg-2: #101826;
+      --text: #e6eef8;
+      --muted: #a9b5c6;
+      --card: #101621b3; /* translucent */
+      --card-border: #203047;
+      --brand: #4ea1ff;
+      --accent: #ffd166;
+      --good: #8bd450;
+      --rain: #6ec8ff;
+      --snow: #dfefff;
+      --wind: #9ad0ff;
+      --shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.02);
+      --radius: 16px;
+      --gap: 16px;
+      --speed: 1; /* global speed multiplier */
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      :root { --speed: 0; }
+      * { animation: none !important; transition: none !important; }
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: radial-gradient(1200px 800px at 10% 10%, #162132 0%, var(--bg-1) 45%, var(--bg-0) 100%);
+      color: var(--text);
+      font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+
+    .page {
+      min-height: 100dvh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 24px;
+      padding: 28px clamp(16px, 3vw, 36px);
+    }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px 16px;
+    }
+
+    .title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      letter-spacing: 0.2px;
+    }
+    .title-badge {
+      width: 28px; height: 28px; border-radius: 8px;
+      display: grid; place-items: center;
+      background: linear-gradient(135deg, #1e2b3e 0%, #192536 100%);
+      box-shadow: var(--shadow);
+      border: 1px solid #1f2e45;
+      color: var(--brand);
+      font-weight: 700;
+    }
+    h1 { margin: 0; font-size: 18px; color: var(--text); }
+    .sub { color: var(--muted); font-size: 12px; }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      appearance: none;
+      border: 1px solid #22334b;
+      background: linear-gradient(180deg, #152034 0%, #0f1726 100%);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: transform .18s ease, background .18s ease, border-color .18s ease, box-shadow .18s ease;
+      box-shadow: var(--shadow);
+      font-weight: 600;
+      letter-spacing: .2px;
+      user-select: none;
+    }
+    .btn:hover { transform: translateY(-1px); border-color: #2c4363; }
+    .btn:active { transform: translateY(0); }
+    .btn.primary { border-color: #2f6fb4; background: linear-gradient(180deg, #1b2c45 0%, #132238 100%); color: #d8ebff; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(240px, 1fr));
+      gap: var(--gap);
+    }
+    @media (max-width: 1200px) {
+      .grid { grid-template-columns: repeat(2, minmax(240px, 1fr)); }
+    }
+    @media (max-width: 640px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      position: relative;
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(22,34,52,.85), rgba(15,23,38,.85));
+      border: 1px solid var(--card-border);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      isolation: isolate;
+    }
+    .card::before { /* subtle top highlight */
+      content: "";
+      position: absolute; inset: 0;
+      background: radial-gradient(800px 200px at 0% 0%, rgba(255,255,255,.06), transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 16px 8px;
+      z-index: 2;
+      position: relative;
+    }
+    .card-title { font-weight: 700; letter-spacing: .3px; }
+    .badge {
+      font-size: 11px; color: var(--muted);
+      padding: 2px 8px; border-radius: 999px;
+      border: 1px solid #2b3f5d; background: #121b2d;
+    }
+
+    .scene {
+      position: relative; height: 200px;
+      margin: 8px; border-radius: 12px;
+      overflow: hidden; border: 1px solid #203047; background: #0e1626;
+    }
+
+    /* Shared helpers */
+    .dimmed { filter: saturate(.6) brightness(.85); }
+    .focused { outline: 2px solid #3a83ff; outline-offset: -2px; box-shadow: 0 0 0 4px rgba(58,131,255,.15) inset; }
+
+    /* SUN - bright rays */
+    .sun { position: absolute; left: 50%; top: 52%; width: 110px; height: 110px; transform: translate(-50%, -50%); filter: drop-shadow(0 0 24px rgba(255, 209, 102, .35)); }
+    .sun-core {
+      position: absolute; inset: 0; border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #ffe9a3 0%, #ffd166 35%, #f7b733 70%, #e79c0f 100%);
+      box-shadow: inset 0 0 20px rgba(255,255,255,.2);
+    }
+    .sun-rays { position: absolute; inset: -18px; border-radius: 50%;
+      background: conic-gradient(from 0deg, rgba(255,209,102,.0) 0deg, rgba(255,209,102,.9) 15deg, rgba(255,209,102,.0) 30deg);
+      -webkit-mask: radial-gradient(circle 46px, transparent 66%, black 67%);
+              mask: radial-gradient(circle 46px, transparent 66%, black 67%);
+      animation: rotateRays calc(12s/var(--speed)) linear infinite;
+    }
+    @keyframes rotateRays { to { transform: rotate(360deg); } }
+    .sun-glow { position: absolute; inset: 0; border-radius: 50%;
+      box-shadow: 0 0 100px 30px rgba(255,209,102,.25), 0 0 60px 10px rgba(255,209,102,.25) inset; }
+
+    /* WIND - flowing lines + swaying tree */
+    .wind-lines { position: absolute; inset: 0; overflow: hidden; }
+    .wind-line {
+      position: absolute; left: -30%; width: 30%; height: 2px; border-radius: 2px;
+      background: linear-gradient(90deg, transparent 0%, var(--wind) 30%, transparent 100%);
+      opacity: .75; filter: blur(.2px);
+      animation: blow calc(5s/var(--speed)) linear infinite;
+      will-change: transform;
+    }
+    @keyframes blow { to { transform: translateX(430%); } }
+
+    .tree { position: absolute; bottom: 8px; left: 24px; width: 50px; height: 100px; transform-origin: bottom left; }
+    .trunk { position: absolute; bottom: 0; left: 18px; width: 8px; height: 70px; background: linear-gradient(#6d513b, #3c2a1f); border-radius: 4px; }
+    .leaf { position: absolute; width: 64px; height: 40px; left: 6px; bottom: 46px; border-radius: 40px 40px 28px 28px; background: linear-gradient(180deg, #2e6842, #153d27); transform-origin: 0 100%; box-shadow: inset 0 10px 12px rgba(255,255,255,.08); }
+    .tree.sway { animation: sway calc(2.8s/var(--speed)) ease-in-out infinite; }
+    .leaf.sway { animation: leafSway calc(2.2s/var(--speed)) ease-in-out infinite; }
+    @keyframes sway { 0%,100% { transform: rotate(-2deg);} 50% { transform: rotate(4deg);} }
+    @keyframes leafSway { 0%,100% { transform: rotate(-6deg);} 50% { transform: rotate(10deg);} }
+
+    /* RAIN - falling drops + puddle ripples */
+    .rain-sky { position: absolute; inset: 0; background: linear-gradient(180deg, #0f1b2c, #0a1423); }
+    .drops { position: absolute; inset: 0; overflow: hidden; }
+    .drop { position: absolute; width: 2px; height: 16px; background: linear-gradient(180deg, rgba(255,255,255,.0), var(--rain)); border-radius: 2px; filter: blur(.2px); opacity: .9; animation: rainFall calc(1.1s/var(--speed)) linear infinite; }
+    @keyframes rainFall { to { transform: translateY(240px); } }
+    .puddle { position: absolute; left: 50%; bottom: 16px; width: 60%; height: 10px; transform: translateX(-50%); border-radius: 999px; background: radial-gradient(60% 100% at 50% 70%, rgba(110,200,255,.22), rgba(110,200,255,.08) 60%, rgba(110,200,255,0) 70%); filter: blur(.2px); }
+    .ripple { position: absolute; left: 50%; top: 50%; width: 40%; height: 70%; transform: translate(-50%, -50%); border: 1px solid rgba(110,200,255,.28); border-radius: 999px; animation: ripple calc(2.6s/var(--speed)) ease-out infinite; }
+    .ripple:nth-child(2) { animation-delay: .6s; }
+    .ripple:nth-child(3) { animation-delay: 1.2s; }
+    @keyframes ripple { from { transform: translate(-50%, -50%) scale(.6); opacity: .8; } to { transform: translate(-50%, -50%) scale(1.3); opacity: 0; } }
+
+    /* SNOW - falling flakes + ground */
+    .snow-sky { position: absolute; inset: 0; background: linear-gradient(180deg, #0e1726, #0a111d); }
+    .flakes { position: absolute; inset: 0; overflow: hidden; }
+    .flake { position: absolute; width: 6px; height: 6px; border-radius: 50%; background: var(--snow); filter: drop-shadow(0 0 4px rgba(223,239,255,.4)); opacity: .95; animation: snowFall calc(8s/var(--speed)) linear infinite; }
+    @keyframes snowFall { to { transform: translateY(240px) translateX(20px) rotate(90deg); } }
+    .snow-ground { position: absolute; left: 0; right: 0; bottom: -8px; height: 38px; background: radial-gradient(120% 100% at 0% 0%, rgba(223,239,255,.9), rgba(223,239,255,.65)); border-top-left-radius: 40% 100%; border-top-right-radius: 60% 100%; box-shadow: inset 0 8px 24px rgba(0,0,0,.25); }
+
+    /* Pause/Focus states */
+    .paused * { animation-play-state: paused !important; }
+
+    footer { color: var(--muted); font-size: 12px; text-align: center; padding-top: 6px; }
+
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div class="title">
+        <div class="title-badge">WX</div>
+        <div>
+          <h1>动画天气卡片</h1>
+          <div class="sub">深色主题 · 并排预览 · 流畅动效 · 交互切换</div>
+        </div>
+      </div>
+      <div class="actions" role="group" aria-label="切换天气焦点">
+        <button class="btn primary" onclick="setWeatherFocus('all')">全部</button>
+        <button class="btn" onclick="setWeatherFocus('sunny')">晴</button>
+        <button class="btn" onclick="setWeatherFocus('wind')">风</button>
+        <button class="btn" onclick="setWeatherFocus('rain')">雨</button>
+        <button class="btn" onclick="setWeatherFocus('snow')">雪</button>
+        <button class="btn" onclick="togglePause()" id="pauseBtn" aria-pressed="false">暂停</button>
+      </div>
+    </header>
+
+    <main class="grid" id="grid">
+      <!-- SUNNY -->
+      <section class="card weather sunny" data-kind="sunny" aria-label="晴">
+        <div class="card-head">
+          <div class="card-title">晴 · 24°C</div>
+          <span class="badge">阳光明媚</span>
+        </div>
+        <div class="scene">
+          <div class="sun">
+            <div class="sun-core"></div>
+            <div class="sun-rays"></div>
+            <div class="sun-glow"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- WIND -->
+      <section class="card weather wind" data-kind="wind" aria-label="风">
+        <div class="card-head">
+          <div class="card-title">风 · 东风 4 级</div>
+          <span class="badge">微风徐徐</span>
+        </div>
+        <div class="scene">
+          <div class="wind-lines" id="windLines"></div>
+          <div class="tree sway">
+            <div class="trunk"></div>
+            <div class="leaf sway"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- RAIN -->
+      <section class="card weather rain" data-kind="rain" aria-label="雨">
+        <div class="card-head">
+          <div class="card-title">雨 · 小雨 18°C</div>
+          <span class="badge">滴答作响</span>
+        </div>
+        <div class="scene">
+          <div class="rain-sky"></div>
+          <div class="drops" id="drops"></div>
+          <div class="puddle">
+            <div class="ripple"></div>
+            <div class="ripple"></div>
+            <div class="ripple"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SNOW -->
+      <section class="card weather snow" data-kind="snow" aria-label="雪">
+        <div class="card-head">
+          <div class="card-title">雪 · 小雪 -3°C</div>
+          <span class="badge">轻盈飘落</span>
+        </div>
+        <div class="scene">
+          <div class="snow-sky"></div>
+          <div class="flakes" id="flakes"></div>
+          <div class="snow-ground"></div>
+        </div>
+      </section>
+    </main>
+
+    <footer>© 2025 Webfront Toys · 精致动效仅供示例演示</footer>
+  </div>
+
+  <script>
+    // 简单的状态控制：聚焦指定天气，非聚焦卡片降饱和／降亮度并暂停动画
+    function setWeatherFocus(kind) {
+      const cards = document.querySelectorAll('.card.weather');
+      const grid = document.getElementById('grid');
+      cards.forEach(c => {
+        const isTarget = (kind === 'all') || (c.dataset.kind === kind);
+        c.classList.toggle('dimmed', !isTarget && kind !== 'all');
+        c.classList.toggle('focused', isTarget && kind !== 'all');
+        c.classList.toggle('paused', !isTarget && kind !== 'all');
+      });
+      // 更新按钮样式（可选）
+      for (const btn of document.querySelectorAll('.actions .btn')) {
+        if (btn.textContent && btn.textContent.includes('全部')) {
+          btn.classList.toggle('primary', kind === 'all');
+        }
+      }
+    }
+
+    // 全局暂停 / 恢复
+    function togglePause() {
+      const grid = document.getElementById('grid');
+      const paused = grid.classList.toggle('paused');
+      const btn = document.getElementById('pauseBtn');
+      btn.textContent = paused ? '继续' : '暂停';
+      btn.setAttribute('aria-pressed', String(paused));
+    }
+
+    // 动态生成元素：提升真实感并便于调参
+    function spawnWindLines() {
+      const wrap = document.getElementById('windLines');
+      const rows = 10;
+      for (let i = 0; i < rows; i++) {
+        const el = document.createElement('div');
+        el.className = 'wind-line';
+        el.style.top = (8 + i * 16) + 'px';
+        el.style.animationDelay = (i * 0.3) + 's';
+        el.style.animationDuration = (4 + (i % 4) * 0.6) + 's';
+        el.style.opacity = (0.5 + Math.random() * 0.5).toFixed(2);
+        wrap.appendChild(el);
+      }
+    }
+
+    function spawnRainDrops() {
+      const wrap = document.getElementById('drops');
+      const count = 60;
+      const width = wrap.clientWidth || 300;
+      for (let i = 0; i < count; i++) {
+        const d = document.createElement('div');
+        d.className = 'drop';
+        const x = Math.random() * width;
+        const delay = Math.random() * 1.2;
+        const dur = 0.9 + Math.random() * 0.7;
+        d.style.left = x + 'px';
+        d.style.top = (-Math.random() * 200) + 'px';
+        d.style.animationDelay = delay + 's';
+        d.style.animationDuration = dur + 's';
+        d.style.height = (12 + Math.random() * 10).toFixed(0) + 'px';
+        wrap.appendChild(d);
+      }
+    }
+
+    function spawnSnowFlakes() {
+      const wrap = document.getElementById('flakes');
+      const count = 40;
+      const width = wrap.clientWidth || 300;
+      for (let i = 0; i < count; i++) {
+        const f = document.createElement('div');
+        f.className = 'flake';
+        const x = Math.random() * width;
+        const delay = Math.random() * 6;
+        const dur = 6 + Math.random() * 5;
+        f.style.left = x + 'px';
+        f.style.top = (-Math.random() * 200) + 'px';
+        f.style.animationDelay = delay + 's';
+        f.style.animationDuration = dur + 's';
+        f.style.opacity = (0.6 + Math.random() * 0.4).toFixed(2);
+        const size = 3 + Math.random() * 5;
+        f.style.width = f.style.height = size + 'px';
+        f.style.borderRadius = '50%';
+        wrap.appendChild(f);
+      }
+    }
+
+    // 初始化
+    window.addEventListener('load', () => {
+      spawnWindLines();
+      spawnRainDrops();
+      spawnSnowFlakes();
+      setWeatherFocus('all');
+    });
+  </script>
+</body>
+</html>

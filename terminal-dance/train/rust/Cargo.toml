@@ -1,0 +1,10 @@
+[package]
+name = "train"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+crossterm = "0.27"
+ctrlc = "3"
+unicode-width = "0.1"
