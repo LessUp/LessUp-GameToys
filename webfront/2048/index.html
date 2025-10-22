@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>2048 游戏（纯 HTML/CSS/JS）</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Noto Sans CJK SC", "Microsoft Yahei", sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #333;
+    }
+    .container {
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 16px;
+      padding: 30px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 500px;
+      width: 100%;
+    }
+    h1 {
+      text-align: center;
+      color: #667eea;
+      margin-bottom: 10px;
+      font-size: 48px;
+      font-weight: 700;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .score-box {
+      background: #764ba2;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      text-align: center;
+    }
+    .score-box .label {
+      font-size: 12px;
+      opacity: 0.9;
+    }
+    .score-box .value {
+      font-size: 24px;
+      margin-top: 5px;
+    }
+    .new-game-btn {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .new-game-btn:hover {
+      background: #5568d3;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    .board {
+      background: #bbada0;
+      border-radius: 12px;
+      padding: 15px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+    .tile {
+      aspect-ratio: 1;
+      background: rgba(238, 228, 218, 0.35);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      font-weight: 700;
+      transition: all 0.15s;
+    }
+    .tile.tile-2 { background: #eee4da; color: #776e65; }
+    .tile.tile-4 { background: #ede0c8; color: #776e65; }
+    .tile.tile-8 { background: #f2b179; color: #f9f6f2; }
+    .tile.tile-16 { background: #f59563; color: #f9f6f2; }
+    .tile.tile-32 { background: #f67c5f; color: #f9f6f2; }
+    .tile.tile-64 { background: #f65e3b; color: #f9f6f2; }
+    .tile.tile-128 { background: #edcf72; color: #f9f6f2; font-size: 32px; }
+    .tile.tile-256 { background: #edcc61; color: #f9f6f2; font-size: 32px; }
+    .tile.tile-512 { background: #edc850; color: #f9f6f2; font-size: 32px; }
+    .tile.tile-1024 { background: #edc53f; color: #f9f6f2; font-size: 28px; }
+    .tile.tile-2048 { background: #edc22e; color: #f9f6f2; font-size: 28px; }
+    .tile.tile-4096 { background: #3c3a32; color: #f9f6f2; font-size: 24px; }
+    .instructions {
+      text-align: center;
+      color: #776e65;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .game-over-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    .game-over-overlay.show {
+      display: flex;
+    }
+    .game-over-box {
+      background: white;
+      padding: 40px;
+      border-radius: 16px;
+      text-align: center;
+      animation: bounceIn 0.5s;
+    }
+    .game-over-box h2 {
+      color: #667eea;
+      font-size: 36px;
+      margin-bottom: 20px;
+    }
+    .game-over-box .final-score {
+      font-size: 24px;
+      color: #776e65;
+      margin-bottom: 30px;
+    }
+    @keyframes bounceIn {
+      0% { transform: scale(0.3); opacity: 0; }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    @media (max-width: 480px) {
+      .container {
+        padding: 20px;
+      }
+      h1 {
+        font-size: 36px;
+      }
+      .tile {
+        font-size: 28px;
+      }
+      .tile.tile-128, .tile.tile-256, .tile.tile-512 {
+        font-size: 24px;
+      }
+      .tile.tile-1024, .tile.tile-2048 {
+        font-size: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>2048</h1>
+    <div class="header">
+      <div class="score-box">
+        <div class="label">得分</div>
+        <div class="value" id="score">0</div>
+      </div>
+      <button class="new-game-btn" onclick="game.init()">新游戏</button>
+    </div>
+    <div class="board" id="board"></div>
+    <div class="instructions">
+      使用方向键（↑ ↓ ← →）或 WASD 移动方块<br>
+      相同数字相撞会合并，目标是达到 2048！
+    </div>
+  </div>
+
+  <div class="game-over-overlay" id="gameOver">
+    <div class="game-over-box">
+      <h2>游戏结束！</h2>
+      <div class="final-score">最终得分: <span id="finalScore">0</span></div>
+      <button class="new-game-btn" onclick="game.init()">再来一局</button>
+    </div>
+  </div>
+
+  <script>
+    class Game2048 {
+      constructor() {
+        this.board = Array(4).fill(null).map(() => Array(4).fill(0));
+        this.score = 0;
+        this.boardEl = document.getElementById('board');
+        this.scoreEl = document.getElementById('score');
+        this.gameOverEl = document.getElementById('gameOver');
+        this.finalScoreEl = document.getElementById('finalScore');
+        this.init();
+        this.setupControls();
+      }
+
+      init() {
+        this.board = Array(4).fill(null).map(() => Array(4).fill(0));
+        this.score = 0;
+        this.gameOverEl.classList.remove('show');
+        this.addRandomTile();
+        this.addRandomTile();
+        this.render();
+      }
+
+      addRandomTile() {
+        const empty = [];
+        for (let r = 0; r < 4; r++) {
+          for (let c = 0; c < 4; c++) {
+            if (this.board[r][c] === 0) {
+              empty.push({ r, c });
+            }
+          }
+        }
+        if (empty.length > 0) {
+          const { r, c } = empty[Math.floor(Math.random() * empty.length)];
+          this.board[r][c] = Math.random() < 0.9 ? 2 : 4;
+        }
+      }
+
+      render() {
+        this.boardEl.innerHTML = '';
+        for (let r = 0; r < 4; r++) {
+          for (let c = 0; c < 4; c++) {
+            const tile = document.createElement('div');
+            const value = this.board[r][c];
+            tile.className = value > 0 ? `tile tile-${value}` : 'tile';
+            tile.textContent = value > 0 ? value : '';
+            this.boardEl.appendChild(tile);
+          }
+        }
+        this.scoreEl.textContent = this.score;
+      }
+
+      move(direction) {
+        let moved = false;
+        const newBoard = Array(4).fill(null).map(() => Array(4).fill(0));
+
+        const getLine = (i) => {
+          switch (direction) {
+            case 'up': return this.board.map(row => row[i]);
+            case 'down': return this.board.map(row => row[i]).reverse();
+            case 'left': return this.board[i];
+            case 'right': return this.board[i].slice().reverse();
+          }
+        };
+
+        const setLine = (i, line) => {
+          if (direction === 'down') line = line.reverse();
+          if (direction === 'right') line = line.reverse();
+          
+          for (let j = 0; j < 4; j++) {
+            const oldVal = direction === 'up' || direction === 'down' 
+              ? this.board[j][i] 
+              : this.board[i][j];
+            const newVal = line[j];
+            
+            if (direction === 'up' || direction === 'down') {
+              newBoard[j][i] = newVal;
+            } else {
+              newBoard[i][j] = newVal;
+            }
+            
+            if (oldVal !== newVal) moved = true;
+          }
+        };
+
+        for (let i = 0; i < 4; i++) {
+          const line = getLine(i);
+          const newLine = [];
+          
+          const filtered = line.filter(x => x !== 0);
+          
+          for (let j = 0; j < filtered.length; j++) {
+            if (j < filtered.length - 1 && filtered[j] === filtered[j + 1]) {
+              newLine.push(filtered[j] * 2);
+              this.score += filtered[j] * 2;
+              j++;
+            } else {
+              newLine.push(filtered[j]);
+            }
+          }
+          
+          while (newLine.length < 4) {
+            newLine.push(0);
+          }
+          
+          setLine(i, newLine);
+        }
+
+        if (moved) {
+          this.board = newBoard;
+          this.addRandomTile();
+          this.render();
+          
+          if (this.isGameOver()) {
+            this.finalScoreEl.textContent = this.score;
+            this.gameOverEl.classList.add('show');
+          }
+        }
+      }
+
+      isGameOver() {
+        for (let r = 0; r < 4; r++) {
+          for (let c = 0; c < 4; c++) {
+            if (this.board[r][c] === 0) return false;
+            if (c < 3 && this.board[r][c] === this.board[r][c + 1]) return false;
+            if (r < 3 && this.board[r][c] === this.board[r + 1][c]) return false;
+          }
+        }
+        return true;
+      }
+
+      setupControls() {
+        document.addEventListener('keydown', (e) => {
+          const keyMap = {
+            'ArrowUp': 'up', 'w': 'up', 'W': 'up',
+            'ArrowDown': 'down', 's': 'down', 'S': 'down',
+            'ArrowLeft': 'left', 'a': 'left', 'A': 'left',
+            'ArrowRight': 'right', 'd': 'right', 'D': 'right'
+          };
+          
+          const direction = keyMap[e.key];
+          if (direction) {
+            e.preventDefault();
+            this.move(direction);
+          }
+        });
+
+        let touchStartX = 0;
+        let touchStartY = 0;
+        
+        this.boardEl.addEventListener('touchstart', (e) => {
+          touchStartX = e.touches[0].clientX;
+          touchStartY = e.touches[0].clientY;
+        });
+        
+        this.boardEl.addEventListener('touchend', (e) => {
+          const touchEndX = e.changedTouches[0].clientX;
+          const touchEndY = e.changedTouches[0].clientY;
+          const dx = touchEndX - touchStartX;
+          const dy = touchEndY - touchStartY;
+          
+          if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 30) {
+            this.move(dx > 0 ? 'right' : 'left');
+          } else if (Math.abs(dy) > 30) {
+            this.move(dy > 0 ? 'down' : 'up');
+          }
+        });
+      }
+    }
+
+    const game = new Game2048();
+  </script>
+</body>
+</html>
