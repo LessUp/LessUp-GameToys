@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>粒子系统引擎 · 力场与发射模拟</title>
+  <style>
+    :root {
+      --bg-0: #05070a;
+      --bg-1: #0d1118;
+      --bg-2: #101725;
+      --text: #e6eef8;
+      --muted: #97a3b9;
+      --accent: #f97316;
+      --accent-2: #3b82f6;
+      --accent-3: #a855f7;
+      --panel: rgba(16, 23, 37, 0.8);
+      --border: rgba(59, 130, 246, 0.18);
+      --shadow: 0 18px 42px rgba(8, 12, 20, 0.6);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100vh;
+      font: 14px/1.5 "SF Pro Display", system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: radial-gradient(circle at 15% 20%, rgba(168, 85, 247, 0.12), transparent 55%),
+                  radial-gradient(circle at 85% 75%, rgba(59, 130, 246, 0.18), transparent 60%),
+                  linear-gradient(160deg, var(--bg-1), var(--bg-0));
+      color: var(--text);
+      padding: 32px clamp(12px, 6vw, 36px);
+      display: flex;
+      justify-content: center;
+    }
+
+    .layout {
+      width: min(1200px, 100%);
+      display: grid;
+      gap: 24px;
+    }
+
+    header {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(26px, 4vw, 34px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      max-width: 680px;
+    }
+
+    .panel {
+      padding: 18px 20px;
+      border-radius: var(--radius);
+      background: var(--panel);
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+    }
+
+    .stage {
+      position: relative;
+      height: min(70vh, 620px);
+      min-height: 420px;
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: radial-gradient(circle at 50% 30%, rgba(59, 130, 246, 0.08), transparent 50%),
+                  radial-gradient(circle at 50% 70%, rgba(249, 115, 22, 0.1), transparent 65%),
+                  var(--bg-2);
+      box-shadow: inset 0 0 0 1px rgba(8, 12, 20, 0.9);
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+    }
+
+    .control {
+      display: grid;
+      gap: 6px;
+    }
+
+    .control label {
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    input[type="range"] {
+      accent-color: var(--accent-2);
+    }
+
+    input[type="number"], select {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      background: rgba(11, 16, 26, 0.7);
+      color: var(--text);
+      font-weight: 600;
+      outline: none;
+    }
+
+    .buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid rgba(59, 130, 246, 0.25);
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(168, 85, 247, 0.3));
+      color: var(--text);
+      font-weight: 600;
+      padding: 8px 16px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: transform 0.15s ease, border-color 0.2s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      border-color: rgba(59, 130, 246, 0.6);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button.primary {
+      background: linear-gradient(135deg, rgba(249, 115, 22, 0.6), rgba(244, 114, 182, 0.5));
+      border-color: transparent;
+    }
+
+    .stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      color: var(--muted);
+      margin-top: 16px;
+      font-size: 12px;
+    }
+
+    .chip {
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      background: rgba(9, 13, 19, 0.8);
+      letter-spacing: 0.2px;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 8px;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <header>
+      <h1>粒子系统引擎</h1>
+      <p class="subtitle">实时粒子发射与力场模拟，支持重力、风力、摩擦、噪声扰动等多种效果，并提供轨迹尾迹与颜色渐变控制。</p>
+    </header>
+
+    <div class="panel">
+      <div class="controls">
+        <div class="control">
+          <label>发射速率 <span id="labelRate">240</span></label>
+          <input id="rate" type="range" min="0" max="500" step="10" value="240" />
+        </div>
+        <div class="control">
+          <label>粒子寿命 (s) <span id="labelLife">2.8</span></label>
+          <input id="life" type="range" min="0.5" max="5" step="0.1" value="2.8" />
+        </div>
+        <div class="control">
+          <label>重力 (px/s²) <span id="labelGravity">140</span></label>
+          <input id="gravity" type="range" min="-400" max="400" step="5" value="140" />
+        </div>
+        <div class="control">
+          <label>风力 (px/s²) <span id="labelWind">-20</span></label>
+          <input id="wind" type="range" min="-300" max="300" step="5" value="-20" />
+        </div>
+        <div class="control">
+          <label>摩擦系数 <span id="labelFriction">0.92</span></label>
+          <input id="friction" type="range" min="0.80" max="0.995" step="0.005" value="0.92" />
+        </div>
+        <div class="control">
+          <label>噪声扰动 <span id="labelNoise">0.6</span></label>
+          <input id="noise" type="range" min="0" max="2" step="0.1" value="0.6" />
+        </div>
+        <div class="control">
+          <label>尾迹长度 <span id="labelTrail">16</span></label>
+          <input id="trail" type="range" min="0" max="24" step="1" value="16" />
+        </div>
+        <div class="control">
+          <label>发射模式</label>
+          <select id="emitter">
+            <option value="cone">扇形喷射</option>
+            <option value="burst">中心爆裂</option>
+            <option value="ring">旋转环</option>
+            <option value="stream">平行流</option>
+          </select>
+        </div>
+        <div class="control">
+          <label>色彩方案</label>
+          <select id="palette">
+            <option value="sunset">日落暖光</option>
+            <option value="aurora">极光渐变</option>
+            <option value="neon">霓虹炫彩</option>
+            <option value="ember">余烬火花</option>
+          </select>
+        </div>
+        <div class="control">
+          <label>最大粒子数</label>
+          <input id="maxCount" type="number" min="100" max="3000" step="50" value="1200" />
+        </div>
+      </div>
+
+      <div class="buttons">
+        <button id="toggle">暂停</button>
+        <button id="emitBurst" class="primary">触发爆炸</button>
+        <button id="clear">清空粒子</button>
+      </div>
+
+      <div class="stats">
+        <span class="chip">当前粒子：<strong id="labelCount">0</strong></span>
+        <span class="chip">平均速度：<strong id="labelSpeed">0</strong> px/s</span>
+        <span class="chip">FPS：<strong id="labelFPS">0</strong></span>
+      </div>
+      <div class="hint">点击画布改变发射器位置 · 按住拖动调整方向 · 滚轮可缩放视图</div>
+    </div>
+
+    <div class="stage">
+      <canvas id="canvas"></canvas>
+    </div>
+  </div>
+
+  <script>
+    "use strict";
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    let width, height;
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+
+    function resize() {
+      const rect = canvas.getBoundingClientRect();
+      width = Math.floor(rect.width);
+      height = Math.floor(rect.height);
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(dpr, dpr);
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    const params = {
+      rate: 240,
+      life: 2.8,
+      gravity: 140,
+      wind: -20,
+      friction: 0.92,
+      noise: 0.6,
+      trail: 16,
+      emitter: "cone",
+      palette: "sunset",
+      maxCount: 1200,
+      running: true,
+    };
+
+    const palettes = {
+      sunset: ["#f97316", "#fb923c", "#facc15", "#f97316"],
+      aurora: ["#0ea5e9", "#22d3ee", "#a855f7", "#0ea5e9"],
+      neon: ["#f472b6", "#8b5cf6", "#38bdf8", "#14b8a6"],
+      ember: ["#fb7185", "#f97316", "#facc15", "#ef4444"],
+    };
+
+    const controls = {
+      rate: document.getElementById("rate"),
+      life: document.getElementById("life"),
+      gravity: document.getElementById("gravity"),
+      wind: document.getElementById("wind"),
+      friction: document.getElementById("friction"),
+      noise: document.getElementById("noise"),
+      trail: document.getElementById("trail"),
+      emitter: document.getElementById("emitter"),
+      palette: document.getElementById("palette"),
+      maxCount: document.getElementById("maxCount"),
+      toggle: document.getElementById("toggle"),
+      emitBurst: document.getElementById("emitBurst"),
+      clear: document.getElementById("clear"),
+    };
+
+    const labels = {
+      rate: document.getElementById("labelRate"),
+      life: document.getElementById("labelLife"),
+      gravity: document.getElementById("labelGravity"),
+      wind: document.getElementById("labelWind"),
+      friction: document.getElementById("labelFriction"),
+      noise: document.getElementById("labelNoise"),
+      trail: document.getElementById("labelTrail"),
+      count: document.getElementById("labelCount"),
+      speed: document.getElementById("labelSpeed"),
+      fps: document.getElementById("labelFPS"),
+    };
+
+    const state = {
+      particles: [],
+      emitterPos: { x: width / 2, y: height / 2 },
+      emitterDir: { x: 0, y: -1 },
+      zoom: 1,
+    };
+
+    Object.entries({
+      rate: (v) => params.rate = parseFloat(v),
+      life: (v) => params.life = parseFloat(v),
+      gravity: (v) => params.gravity = parseFloat(v),
+      wind: (v) => params.wind = parseFloat(v),
+      friction: (v) => params.friction = parseFloat(v),
+      noise: (v) => params.noise = parseFloat(v),
+      trail: (v) => params.trail = parseFloat(v),
+      emitter: (v) => params.emitter = v,
+      palette: (v) => params.palette = v,
+      maxCount: (v) => params.maxCount = Math.max(50, parseInt(v, 10) || 500),
+    }).forEach(([key, fn]) => {
+      controls[key].addEventListener("input", (event) => {
+        fn(event.target.value);
+        updateLabels();
+      });
+    });
+
+    function updateLabels() {
+      labels.rate.textContent = params.rate;
+      labels.life.textContent = params.life.toFixed(1);
+      labels.gravity.textContent = params.gravity.toFixed(0);
+      labels.wind.textContent = params.wind.toFixed(0);
+      labels.friction.textContent = params.friction.toFixed(2);
+      labels.noise.textContent = params.noise.toFixed(1);
+      labels.trail.textContent = params.trail;
+    }
+    updateLabels();
+
+    controls.toggle.addEventListener("click", () => {
+      params.running = !params.running;
+      controls.toggle.textContent = params.running ? "暂停" : "继续";
+    });
+
+    controls.clear.addEventListener("click", () => {
+      state.particles = [];
+    });
+
+    controls.emitBurst.addEventListener("click", () => {
+      emitBurst(state.emitterPos.x, state.emitterPos.y, 240);
+    });
+
+    class Particle {
+      constructor(x, y, vx, vy, life, colorStops) {
+        this.x = x;
+        this.y = y;
+        this.vx = vx;
+        this.vy = vy;
+        this.life = life;
+        this.maxLife = life;
+        this.colorStops = colorStops;
+        this.trail = [];
+      }
+      update(dt) {
+        this.trail.push({ x: this.x, y: this.y });
+        if (this.trail.length > params.trail) {
+          this.trail.splice(0, this.trail.length - params.trail);
+        }
+        const noiseAngle = (Math.random() - 0.5) * params.noise;
+        const cos = Math.cos(noiseAngle);
+        const sin = Math.sin(noiseAngle);
+        const vx = this.vx * cos - this.vy * sin;
+        const vy = this.vx * sin + this.vy * cos;
+        this.vx = vx * params.friction + params.wind * dt;
+        this.vy = vy * params.friction + params.gravity * dt;
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+        this.life -= dt;
+      }
+      draw(ctx) {
+        const t = Math.max(0, this.life) / this.maxLife;
+        const color = sampleGradient(this.colorStops, 1 - t);
+        const size = 4 + 6 * (1 - t);
+
+        if (this.trail.length > 1) {
+          ctx.beginPath();
+          for (let i = 0; i < this.trail.length - 1; i++) {
+            const p = this.trail[i];
+            const n = this.trail[i + 1];
+            const alpha = i / this.trail.length;
+            ctx.strokeStyle = setAlpha(color, alpha * 0.45);
+            ctx.lineWidth = 1 + alpha * 1.6;
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(n.x, n.y);
+          }
+          ctx.stroke();
+        }
+
+        ctx.beginPath();
+        const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, size * 1.2);
+        gradient.addColorStop(0, setAlpha(color, 0.9));
+        gradient.addColorStop(1, setAlpha(color, 0));
+        ctx.fillStyle = gradient;
+        ctx.arc(this.x, this.y, size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function setAlpha(color, alpha) {
+      const c = color.replace(/^#/, "");
+      const bigint = parseInt(c, 16);
+      const r = (bigint >> 16) & 255;
+      const g = (bigint >> 8) & 255;
+      const b = bigint & 255;
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    function sampleGradient(stops, t) {
+      const scaled = t * (stops.length - 1);
+      const idx = Math.floor(scaled);
+      const fract = scaled - idx;
+      const a = hexToRGB(stops[idx % stops.length]);
+      const b = hexToRGB(stops[(idx + 1) % stops.length]);
+      const r = Math.round(a.r + (b.r - a.r) * fract);
+      const g = Math.round(a.g + (b.g - a.g) * fract);
+      const bl = Math.round(a.b + (b.b - a.b) * fract);
+      return `#${((1 << 24) + (r << 16) + (g << 8) + bl).toString(16).slice(1)}`;
+    }
+
+    function hexToRGB(hex) {
+      const c = hex.replace(/^#/, "");
+      const bigint = parseInt(c, 16);
+      return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 };
+    }
+
+    function emit(dt) {
+      const emitCount = params.rate * dt;
+      state._emitCarry = (state._emitCarry || 0) + emitCount;
+      const toEmit = Math.floor(state._emitCarry);
+      state._emitCarry -= toEmit;
+
+      const palette = palettes[params.palette];
+      for (let i = 0; i < toEmit; i++) {
+        if (state.particles.length >= params.maxCount) break;
+        const emission = createEmissionVelocity(params.emitter);
+        const speed = emission.speed;
+        const vx = emission.dir.x * speed;
+        const vy = emission.dir.y * speed;
+        state.particles.push(
+          new Particle(
+            state.emitterPos.x,
+            state.emitterPos.y,
+            vx,
+            vy,
+            params.life,
+            palette
+          )
+        );
+      }
+    }
+
+    function createEmissionVelocity(mode) {
+      switch (mode) {
+        case "burst": {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 60 + Math.random() * 140;
+          return { dir: { x: Math.cos(angle), y: Math.sin(angle) }, speed };
+        }
+        case "ring": {
+          if (!state._ringAngle) state._ringAngle = 0;
+          state._ringAngle += 0.18;
+          const angle = state._ringAngle;
+          const speed = 150;
+          return { dir: { x: Math.cos(angle), y: Math.sin(angle) }, speed };
+        }
+        case "stream": {
+          const base = { x: 1, y: 0 };
+          const jitter = (Math.random() - 0.5) * 0.4;
+          const angle = Math.atan2(base.y, base.x) + jitter;
+          const speed = 120 + Math.random() * 80;
+          return { dir: { x: Math.cos(angle), y: Math.sin(angle) }, speed };
+        }
+        default: { // cone
+          const baseAngle = Math.atan2(state.emitterDir.y, state.emitterDir.x);
+          const spread = Math.PI / 6;
+          const angle = baseAngle + (Math.random() - 0.5) * spread * 2;
+          const speed = 90 + Math.random() * 140;
+          return { dir: { x: Math.cos(angle), y: Math.sin(angle) }, speed };
+        }
+      }
+    }
+
+    function emitBurst(x, y, count) {
+      const palette = palettes[params.palette];
+      for (let i = 0; i < count; i++) {
+        if (state.particles.length >= params.maxCount) break;
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 80 + Math.random() * 220;
+        const vx = Math.cos(angle) * speed;
+        const vy = Math.sin(angle) * speed;
+        state.particles.push(new Particle(x, y, vx, vy, params.life * 0.9, palette));
+      }
+    }
+
+    canvas.addEventListener("mousedown", (e) => {
+      const { x, y } = getCoords(e);
+      state.emitterPos.x = x;
+      state.emitterPos.y = y;
+      state.dragging = true;
+    });
+
+    canvas.addEventListener("mousemove", (e) => {
+      const { x, y } = getCoords(e);
+      if (state.dragging) {
+        state.emitterDir.x = Math.max(-1, Math.min(1, x - state.emitterPos.x));
+        state.emitterDir.y = Math.max(-1, Math.min(1, y - state.emitterPos.y));
+        const len = Math.hypot(state.emitterDir.x, state.emitterDir.y) || 1;
+        state.emitterDir.x /= len;
+        state.emitterDir.y /= len;
+      }
+    });
+
+    window.addEventListener("mouseup", () => (state.dragging = false));
+
+    canvas.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const s = Math.exp(-e.deltaY * 0.001);
+      state.zoom = Math.max(0.6, Math.min(1.8, state.zoom * s));
+    }, { passive: false });
+
+    function getCoords(evt) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (evt.clientX - rect.left),
+        y: (evt.clientY - rect.top),
+      };
+    }
+
+    let lastTime = performance.now();
+    let fpsAccum = 0;
+    let fpsFrames = 0;
+
+    function frame(time) {
+      const dt = Math.min(0.033, (time - lastTime) / 1000 || 0.016);
+      lastTime = time;
+
+      if (params.running) {
+        emit(dt);
+      }
+
+      ctx.clearRect(0, 0, width, height);
+      ctx.save();
+      const cx = width / 2;
+      const cy = height / 2;
+      ctx.translate(cx, cy);
+      ctx.scale(state.zoom, state.zoom);
+      ctx.translate(-cx, -cy);
+
+      const alive = [];
+      let speedSum = 0;
+      for (const p of state.particles) {
+        if (params.running) {
+          p.update(dt);
+        }
+        if (p.life > 0 && p.x > -80 && p.x < width + 80 && p.y > -80 && p.y < height + 80) {
+          alive.push(p);
+          speedSum += Math.hypot(p.vx, p.vy);
+        }
+        p.draw(ctx);
+      }
+      state.particles = alive;
+
+      // draw emitter gizmo
+      ctx.strokeStyle = "rgba(148, 163, 184, 0.35)";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(state.emitterPos.x, state.emitterPos.y, 14, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(state.emitterPos.x, state.emitterPos.y);
+      ctx.lineTo(state.emitterPos.x + state.emitterDir.x * 28, state.emitterPos.y + state.emitterDir.y * 28);
+      ctx.stroke();
+      ctx.restore();
+
+      labels.count.textContent = state.particles.length;
+      labels.speed.textContent = (speedSum / Math.max(1, state.particles.length) || 0).toFixed(1);
+
+      fpsAccum += dt;
+      fpsFrames++;
+      if (fpsAccum >= 0.5) {
+        labels.fps.textContent = Math.round(fpsFrames / fpsAccum);
+        fpsAccum = 0;
+        fpsFrames = 0;
+      }
+
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>

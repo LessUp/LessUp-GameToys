@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>3D 图形变换 · CSS & Canvas 交互示例</title>
+  <style>
+    :root {
+      --bg: #04070d;
+      --panel: rgba(12, 16, 26, 0.82);
+      --border: rgba(94, 234, 212, 0.2);
+      --text: #ecfdf5;
+      --muted: #9ae6d8;
+      --accent: #5eead4;
+      --accent-2: #38bdf8;
+      --radius: 18px;
+      --shadow: 0 20px 48px rgba(2, 10, 10, 0.6);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100vh;
+      font: 14px/1.5 "SF Pro Display", system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: radial-gradient(circle at 20% 15%, rgba(94, 234, 212, 0.18), transparent 55%),
+                  radial-gradient(circle at 80% 85%, rgba(56, 189, 248, 0.12), transparent 60%),
+                  linear-gradient(160deg, #031218, #050a11);
+      color: var(--text);
+      padding: 32px clamp(12px, 6vw, 36px);
+      display: flex;
+      justify-content: center;
+    }
+
+    .layout {
+      width: min(1100px, 100%);
+      display: grid;
+      gap: 24px;
+    }
+
+    header {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(26px, 4vw, 34px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      max-width: 720px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border-radius: var(--radius);
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      box-shadow: var(--shadow);
+      padding: 18px;
+      backdrop-filter: blur(12px);
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+    }
+
+    .control {
+      display: grid;
+      gap: 6px;
+    }
+
+    .control label {
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    input[type="range"] { accent-color: var(--accent); }
+    select {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(94,234,212,0.35);
+      background: rgba(3, 19, 24, 0.85);
+      color: var(--text);
+      font-weight: 600;
+      outline: none;
+    }
+
+    .buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid rgba(94,234,212,0.28);
+      background: linear-gradient(135deg, rgba(94,234,212,0.45), rgba(56,189,248,0.38));
+      color: var(--text);
+      font-weight: 600;
+      padding: 8px 16px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: transform 0.15s ease, border-color 0.2s ease;
+    }
+
+    button:hover { transform: translateY(-1px); border-color: rgba(94,234,212,0.7); }
+    button:active { transform: translateY(0); }
+
+    .stage {
+      position: relative;
+      border-radius: var(--radius);
+      border: 1px solid rgba(94, 234, 212, 0.25);
+      overflow: hidden;
+      min-height: 420px;
+      height: min(70vh, 620px);
+      background: radial-gradient(circle at 50% 30%, rgba(94,234,212,0.18), rgba(10,28,30,0.9) 45%, rgba(4,9,12,0.95) 90%);
+      box-shadow: inset 0 0 0 1px rgba(2,12,12,0.85);
+      display: grid;
+      place-items: center;
+      perspective: 1200px;
+    }
+
+    .scene {
+      position: relative;
+      width: min(520px, 70vw);
+      height: min(520px, 70vw);
+      transform-style: preserve-3d;
+      transition: transform 0.6s ease;
+    }
+
+    .shape {
+      position: absolute;
+      inset: 0;
+      margin: auto;
+      transform-style: preserve-3d;
+    }
+
+    .cube {
+      width: 220px;
+      height: 220px;
+      transform: translateZ(-110px);
+      animation: spinCube linear infinite;
+    }
+
+    .cube-face {
+      position: absolute;
+      width: 220px;
+      height: 220px;
+      background: linear-gradient(135deg, rgba(94,234,212,0.35), rgba(56,189,248,0.3));
+      border: 1px solid rgba(148, 245, 227, 0.3);
+      backdrop-filter: blur(6px);
+      display: grid;
+      place-items: center;
+      font-size: 42px;
+      font-weight: 700;
+      color: rgba(236,253,245,0.68);
+    }
+
+    .cube-face:nth-child(1) { transform: rotateY(0deg) translateZ(110px); }
+    .cube-face:nth-child(2) { transform: rotateY(90deg) translateZ(110px); }
+    .cube-face:nth-child(3) { transform: rotateY(180deg) translateZ(110px); }
+    .cube-face:nth-child(4) { transform: rotateY(-90deg) translateZ(110px); }
+    .cube-face:nth-child(5) { transform: rotateX(90deg) translateZ(110px); }
+    .cube-face:nth-child(6) { transform: rotateX(-90deg) translateZ(110px); }
+
+    @keyframes spinCube {
+      from { transform: rotateX(18deg) rotateY(12deg) rotateZ(0deg); }
+      to { transform: rotateX(18deg) rotateY(372deg) rotateZ(360deg); }
+    }
+
+    .ring {
+      width: 360px;
+      height: 360px;
+      animation: orbit linear infinite;
+    }
+
+    .ring span {
+      position: absolute;
+      inset: 0;
+      margin: auto;
+      width: 360px;
+      height: 360px;
+      border-radius: 50%;
+      border: 2px solid rgba(57, 211, 182, 0.28);
+      box-shadow: 0 0 40px rgba(57,211,182,0.3);
+    }
+
+    .ring span:nth-child(2) { transform: rotateX(65deg); border-color: rgba(56,189,248,0.35); }
+    .ring span:nth-child(3) { transform: rotateY(65deg); border-color: rgba(125,211,252,0.22); }
+
+    @keyframes orbit {
+      from { transform: rotateX(10deg) rotateY(0deg); }
+      to { transform: rotateX(10deg) rotateY(360deg); }
+    }
+
+    .poly {
+      position: absolute;
+      inset: 0;
+      margin: auto;
+      width: 320px;
+      height: 320px;
+      transform-style: preserve-3d;
+      animation: spinPoly linear infinite;
+    }
+
+    @keyframes spinPoly {
+      from { transform: rotateY(0) rotateX(0); }
+      to { transform: rotateY(360deg) rotateX(405deg); }
+    }
+
+    .poly canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 8px;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <header>
+      <h1>3D 图形变换</h1>
+      <p class="subtitle">利用 CSS 3D 与 Canvas 绘制展示多种空间变换效果，可交互控制旋转角度、投影透视与动画模式。</p>
+    </header>
+
+    <div class="panel">
+      <div class="controls">
+        <div class="control">
+          <label>观察角度 X <span id="labelAngleX">18°</span></label>
+          <input id="angleX" type="range" min="-60" max="60" step="1" value="18" />
+        </div>
+        <div class="control">
+          <label>观察角度 Y <span id="labelAngleY">24°</span></label>
+          <input id="angleY" type="range" min="-180" max="180" step="1" value="24" />
+        </div>
+        <div class="control">
+          <label>透视深度 <span id="labelPerspective">1200</span></label>
+          <input id="perspective" type="range" min="400" max="2000" step="50" value="1200" />
+        </div>
+        <div class="control">
+          <label>动画速度 <span id="labelSpeed">1.0</span></label>
+          <input id="speed" type="range" min="0" max="3" step="0.1" value="1.0" />
+        </div>
+        <div class="control">
+          <label>展示模式</label>
+          <select id="mode">
+            <option value="all">全部</option>
+            <option value="cube">立方体</option>
+            <option value="ring">环轨</option>
+            <option value="poly">多面体</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="buttons">
+        <button id="toggle">暂停</button>
+        <button id="reset">重置视角</button>
+      </div>
+      <div class="hint">拖拽画布旋转视角 · 滚轮缩放 · 双击恢复默认</div>
+    </div>
+
+    <div class="stage" id="stage">
+      <div class="scene" id="scene">
+        <div class="shape cube" id="cube">
+          <div class="cube-face">1</div>
+          <div class="cube-face">2</div>
+          <div class="cube-face">3</div>
+          <div class="cube-face">4</div>
+          <div class="cube-face">5</div>
+          <div class="cube-face">6</div>
+        </div>
+        <div class="shape ring" id="ring">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+        <div class="shape poly" id="poly">
+          <canvas id="polyCanvas"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    "use strict";
+    const scene = document.getElementById("scene");
+    const stage = document.getElementById("stage");
+    const cube = document.getElementById("cube");
+    const ring = document.getElementById("ring");
+    const polyCanvas = document.getElementById("polyCanvas");
+    const polyCtx = polyCanvas.getContext("2d");
+
+    let width, height, dpr;
+    function resize() {
+      dpr = Math.max(1, window.devicePixelRatio || 1);
+      const rect = polyCanvas.getBoundingClientRect();
+      width = Math.floor(rect.width);
+      height = Math.floor(rect.height);
+      polyCanvas.width = width * dpr;
+      polyCanvas.height = height * dpr;
+      polyCtx.setTransform(1, 0, 0, 1, 0, 0);
+      polyCtx.scale(dpr, dpr);
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    const params = {
+      angleX: 18,
+      angleY: 24,
+      perspective: 1200,
+      speed: 1,
+      mode: "all",
+      running: true,
+      zoom: 1,
+    };
+
+    const controls = {
+      angleX: document.getElementById("angleX"),
+      angleY: document.getElementById("angleY"),
+      perspective: document.getElementById("perspective"),
+      speed: document.getElementById("speed"),
+      mode: document.getElementById("mode"),
+      toggle: document.getElementById("toggle"),
+      reset: document.getElementById("reset"),
+    };
+
+    const labels = {
+      angleX: document.getElementById("labelAngleX"),
+      angleY: document.getElementById("labelAngleY"),
+      perspective: document.getElementById("labelPerspective"),
+      speed: document.getElementById("labelSpeed"),
+    };
+
+    function updateLabels() {
+      labels.angleX.textContent = `${params.angleX}°`;
+      labels.angleY.textContent = `${params.angleY}°`;
+      labels.perspective.textContent = params.perspective;
+      labels.speed.textContent = params.speed.toFixed(1);
+    }
+    updateLabels();
+
+    Object.entries({
+      angleX: (v) => params.angleX = parseFloat(v),
+      angleY: (v) => params.angleY = parseFloat(v),
+      perspective: (v) => params.perspective = parseFloat(v),
+      speed: (v) => params.speed = parseFloat(v),
+      mode: (v) => params.mode = v,
+    }).forEach(([key, fn]) => {
+      controls[key].addEventListener("input", (event) => {
+        fn(event.target.value);
+        updateLabels();
+        applyView();
+      });
+    });
+
+    controls.toggle.addEventListener("click", () => {
+      params.running = !params.running;
+      controls.toggle.textContent = params.running ? "暂停" : "继续";
+    });
+
+    controls.reset.addEventListener("click", () => {
+      params.angleX = 18;
+      params.angleY = 24;
+      params.perspective = 1200;
+      params.zoom = 1;
+      controls.angleX.value = params.angleX;
+      controls.angleY.value = params.angleY;
+      controls.perspective.value = params.perspective;
+      updateLabels();
+      applyView();
+    });
+
+    stage.addEventListener("wheel", (event) => {
+      event.preventDefault();
+      const s = Math.exp(-event.deltaY * 0.001);
+      params.zoom = Math.max(0.6, Math.min(1.6, params.zoom * s));
+      applyView();
+    }, { passive: false });
+
+    let dragging = false;
+    let lastX = 0;
+    let lastY = 0;
+    stage.addEventListener("mousedown", (event) => {
+      dragging = true;
+      lastX = event.clientX;
+      lastY = event.clientY;
+    });
+    window.addEventListener("mousemove", (event) => {
+      if (!dragging) return;
+      const dx = event.clientX - lastX;
+      const dy = event.clientY - lastY;
+      lastX = event.clientX;
+      lastY = event.clientY;
+      params.angleY += dx * 0.4;
+      params.angleX -= dy * 0.4;
+      controls.angleX.value = params.angleX;
+      controls.angleY.value = params.angleY;
+      updateLabels();
+      applyView();
+    });
+    window.addEventListener("mouseup", () => dragging = false);
+    stage.addEventListener("dblclick", () => controls.reset.click());
+
+    function applyView() {
+      scene.style.perspective = `${params.perspective}px`;
+      scene.style.transform = `scale(${params.zoom}) rotateX(${params.angleX}deg) rotateY(${params.angleY}deg)`;
+      cube.style.display = (params.mode === "all" || params.mode === "cube") ? "block" : "none";
+      ring.style.display = (params.mode === "all" || params.mode === "ring") ? "block" : "none";
+      document.getElementById("poly").style.display = (params.mode === "all" || params.mode === "poly") ? "block" : "none";
+    }
+    applyView();
+
+    const poly = createIcosahedron();
+
+    function createIcosahedron() {
+      const phi = (1 + Math.sqrt(5)) / 2;
+      const vertices = [
+        [-1, phi, 0], [1, phi, 0], [-1, -phi, 0], [1, -phi, 0],
+        [0, -1, phi], [0, 1, phi], [0, -1, -phi], [0, 1, -phi],
+        [phi, 0, -1], [phi, 0, 1], [-phi, 0, -1], [-phi, 0, 1],
+      ];
+      const faces = [
+        [0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11],
+        [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8],
+        [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9],
+        [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1],
+      ];
+      const norm = vertices.map(v => {
+        const len = Math.hypot(v[0], v[1], v[2]);
+        return v.map(c => c / len);
+      });
+      return { vertices: norm, faces };
+    }
+
+    let polyRotation = { x: 0, y: 0 };
+    let lastRender = performance.now();
+
+    function renderPoly(time) {
+      const dt = Math.min(0.033, (time - lastRender) / 1000 || 0.016);
+      lastRender = time;
+      if (params.running) {
+        polyRotation.x += dt * 0.8 * params.speed;
+        polyRotation.y += dt * 1.1 * params.speed;
+      }
+      polyCtx.clearRect(0, 0, width, height);
+      const scale = Math.min(width, height) * 0.38;
+      const centerX = width / 2;
+      const centerY = height / 2;
+      const projected = poly.vertices.map(([x, y, z]) => {
+        const rx = x;
+        const ry = y * Math.cos(polyRotation.x) - z * Math.sin(polyRotation.x);
+        const rz = y * Math.sin(polyRotation.x) + z * Math.cos(polyRotation.x);
+        const r2x = rx * Math.cos(polyRotation.y) - rz * Math.sin(polyRotation.y);
+        const r2z = rx * Math.sin(polyRotation.y) + rz * Math.cos(polyRotation.y);
+        const perspective = 1 / (1.6 + r2z * 0.7);
+        return { x: centerX + r2x * scale * perspective, y: centerY + ry * scale * perspective, depth: perspective };
+      });
+
+      const faces = poly.faces.slice().sort((a, b) => {
+        const da = (projected[a[0]].depth + projected[a[1]].depth + projected[a[2]].depth) / 3;
+        const db = (projected[b[0]].depth + projected[b[1]].depth + projected[b[2]].depth) / 3;
+        return db - da;
+      });
+
+      for (const face of faces) {
+        polyCtx.beginPath();
+        polyCtx.moveTo(projected[face[0]].x, projected[face[0]].y);
+        polyCtx.lineTo(projected[face[1]].x, projected[face[1]].y);
+        polyCtx.lineTo(projected[face[2]].x, projected[face[2]].y);
+        polyCtx.closePath();
+        const depth = (projected[face[0]].depth + projected[face[1]].depth + projected[face[2]].depth) / 3;
+        const color = `rgba(94,234,212, ${0.55 * depth + 0.1})`;
+        polyCtx.fillStyle = color;
+        polyCtx.fill();
+        polyCtx.strokeStyle = `rgba(148, 245, 227, ${0.35 * depth + 0.1})`;
+        polyCtx.lineWidth = 1.2;
+        polyCtx.stroke();
+      }
+
+      requestAnimationFrame(renderPoly);
+    }
+    requestAnimationFrame(renderPoly);
+  </script>
+</body>
+</html>

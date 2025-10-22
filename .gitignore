@@ -1,0 +1,9 @@
+# OS-specific cruft
+.DS_Store
+Thumbs.db
+
+# Editor directories and caches
+.idea/
+.vscode/
+*.swp
+*.swo

@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>弹簧-质点布料模拟 · 互动演示</title>
+  <style>
+    :root {
+      --bg: #06070d;
+      --panel: rgba(13, 16, 26, 0.82);
+      --border: rgba(129, 140, 248, 0.24);
+      --text: #ecf2ff;
+      --muted: #98a5bf;
+      --accent: #818cf8;
+      --accent-2: #38bdf8;
+      --radius: 18px;
+      --shadow: 0 18px 48px rgba(4, 5, 12, 0.6);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at 15% 30%, rgba(129,140,248,0.16), transparent 60%),
+                  radial-gradient(circle at 85% 70%, rgba(56,189,248,0.12), transparent 60%),
+                  linear-gradient(160deg, #05070f, #090d18);
+      color: var(--text);
+      font: 14px/1.5 "SF Pro Display", system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      padding: 32px clamp(12px, 6vw, 36px);
+      display: flex;
+      justify-content: center;
+    }
+
+    .layout {
+      width: min(1100px, 100%);
+      display: grid;
+      gap: 24px;
+    }
+
+    header {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(26px, 4vw, 34px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      max-width: 660px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border-radius: var(--radius);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      box-shadow: var(--shadow);
+      padding: 18px;
+      backdrop-filter: blur(12px);
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+    }
+
+    .control {
+      display: grid;
+      gap: 6px;
+    }
+
+    .control label {
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    input[type="range"] { accent-color: var(--accent); }
+
+    select {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      background: rgba(8, 10, 19, 0.8);
+      color: var(--text);
+      font-weight: 600;
+      outline: none;
+    }
+
+    .buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid rgba(129, 140, 248, 0.28);
+      background: linear-gradient(135deg, rgba(129,140,248,0.4), rgba(56,189,248,0.35));
+      color: var(--text);
+      font-weight: 600;
+      padding: 8px 16px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: transform 0.15s ease, border-color 0.2s ease;
+    }
+
+    button:hover { transform: translateY(-1px); border-color: rgba(129, 140, 248, 0.7); }
+    button:active { transform: translateY(0); }
+    button.primary { border-color: transparent; }
+
+    .stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      color: var(--muted);
+      margin-top: 14px;
+      font-size: 12px;
+    }
+
+    .chip {
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(129, 140, 248, 0.24);
+      background: rgba(5, 7, 15, 0.72);
+      letter-spacing: 0.2px;
+    }
+
+    .stage {
+      position: relative;
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      box-shadow: inset 0 0 0 1px rgba(6,7,15,0.8);
+      min-height: 420px;
+      height: min(70vh, 620px);
+      background: radial-gradient(circle at 50% 30%, rgba(129,140,248,0.15), rgba(32,48,83,0.85) 45%, rgba(6,7,15,0.95) 90%);
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 8px;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <header>
+      <h1>弹簧-质点布料模拟</h1>
+      <p class="subtitle">基于弹簧-质点模型的布料模拟，支持重力、风力、阻尼与拓扑结构调节，鼠标拖拽可交互编辑布料形状。</p>
+    </header>
+
+    <div class="panel">
+      <div class="controls">
+        <div class="control">
+          <label>布料尺寸 <span id="labelSize">20×12</span></label>
+          <input id="clothWidth" type="range" min="10" max="32" step="2" value="20" />
+        </div>
+        <div class="control">
+          <label>重力 <span id="labelGravity">800</span></label>
+          <input id="gravity" type="range" min="0" max="2000" step="20" value="800" />
+        </div>
+        <div class="control">
+          <label>弹性系数 <span id="labelStiffness">550</span></label>
+          <input id="stiffness" type="range" min="100" max="1200" step="20" value="550" />
+        </div>
+        <div class="control">
+          <label>阻尼系数 <span id="labelDamping">0.14</span></label>
+          <input id="damping" type="range" min="0.02" max="0.4" step="0.01" value="0.14" />
+        </div>
+        <div class="control">
+          <label>弯曲支持</label>
+          <select id="bending">
+            <option value="none">无</option>
+            <option value="diagonal">包含对角</option>
+            <option value="structural">结构 + 弯曲</option>
+          </select>
+        </div>
+        <div class="control">
+          <label>风力 (px/s²) <span id="labelWind">140</span></label>
+          <input id="wind" type="range" min="0" max="400" step="10" value="140" />
+        </div>
+        <div class="control">
+          <label>风向角度 (°) <span id="labelWindAngle">30</span></label>
+          <input id="windAngle" type="range" min="-90" max="90" step="5" value="30" />
+        </div>
+        <div class="control">
+          <label>固定点</label>
+          <select id="pinMode">
+            <option value="corners">四角</option>
+            <option value="top">全顶部</option>
+            <option value="none">全部自由</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="buttons">
+        <button id="toggle">暂停</button>
+        <button id="reset" class="primary">重置布料</button>
+        <button id="drop">瞬间风暴</button>
+      </div>
+
+      <div class="stats">
+        <span class="chip">节点数量：<strong id="labelNodes">0</strong></span>
+        <span class="chip">弹簧数量：<strong id="labelSprings">0</strong></span>
+        <span class="chip">平均速度：<strong id="labelSpeed">0</strong> px/s</span>
+        <span class="chip">FPS：<strong id="labelFPS">0</strong></span>
+      </div>
+      <div class="hint">按住鼠标拖拽节点进行编辑 · 双击画布释放所有固定点 · 支持多点触控拖拽。</div>
+    </div>
+
+    <div class="stage">
+      <canvas id="canvas"></canvas>
+    </div>
+  </div>
+
+  <script>
+    "use strict";
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    let width, height, dpr;
+
+    function resize() {
+      dpr = Math.max(1, window.devicePixelRatio || 1);
+      const rect = canvas.getBoundingClientRect();
+      width = Math.floor(rect.width);
+      height = Math.floor(rect.height);
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(dpr, dpr);
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    const params = {
+      cols: 20,
+      rows: 12,
+      gravity: 800,
+      stiffness: 550,
+      damping: 0.14,
+      bending: "none",
+      wind: 140,
+      windAngle: 30,
+      pinMode: "corners",
+      running: true,
+    };
+
+    const controls = {
+      clothWidth: document.getElementById("clothWidth"),
+      gravity: document.getElementById("gravity"),
+      stiffness: document.getElementById("stiffness"),
+      damping: document.getElementById("damping"),
+      bending: document.getElementById("bending"),
+      wind: document.getElementById("wind"),
+      windAngle: document.getElementById("windAngle"),
+      pinMode: document.getElementById("pinMode"),
+      toggle: document.getElementById("toggle"),
+      reset: document.getElementById("reset"),
+      drop: document.getElementById("drop"),
+    };
+
+    const labels = {
+      size: document.getElementById("labelSize"),
+      gravity: document.getElementById("labelGravity"),
+      stiffness: document.getElementById("labelStiffness"),
+      damping: document.getElementById("labelDamping"),
+      wind: document.getElementById("labelWind"),
+      windAngle: document.getElementById("labelWindAngle"),
+      nodes: document.getElementById("labelNodes"),
+      springs: document.getElementById("labelSprings"),
+      speed: document.getElementById("labelSpeed"),
+      fps: document.getElementById("labelFPS"),
+    };
+
+    function updateLabels() {
+      labels.size.textContent = `${params.cols}×${params.rows}`;
+      labels.gravity.textContent = params.gravity.toFixed(0);
+      labels.stiffness.textContent = params.stiffness.toFixed(0);
+      labels.damping.textContent = params.damping.toFixed(2);
+      labels.wind.textContent = params.wind.toFixed(0);
+      labels.windAngle.textContent = params.windAngle.toFixed(0);
+    }
+    updateLabels();
+
+    Object.entries({
+      clothWidth: (v) => { params.cols = parseInt(v, 10); params.rows = Math.round(params.cols * 0.6); rebuildCloth(); },
+      gravity: (v) => params.gravity = parseFloat(v),
+      stiffness: (v) => { params.stiffness = parseFloat(v); rebuildSprings(); },
+      damping: (v) => params.damping = parseFloat(v),
+      bending: (v) => { params.bending = v; rebuildSprings(); },
+      wind: (v) => params.wind = parseFloat(v),
+      windAngle: (v) => params.windAngle = parseFloat(v),
+      pinMode: (v) => { params.pinMode = v; applyPins(); },
+    }).forEach(([key, fn]) => {
+      controls[key].addEventListener("input", (e) => {
+        fn(e.target.value);
+        updateLabels();
+      });
+    });
+
+    controls.toggle.addEventListener("click", () => {
+      params.running = !params.running;
+      controls.toggle.textContent = params.running ? "暂停" : "继续";
+    });
+
+    controls.reset.addEventListener("click", () => {
+      rebuildCloth();
+      params.running = true;
+      controls.toggle.textContent = "暂停";
+    });
+
+    controls.drop.addEventListener("click", () => {
+      const windDir = getWindDirection();
+      for (const p of cloth.points) {
+        p.vx += windDir.x * 600;
+        p.vy += windDir.y * 600;
+      }
+    });
+
+    class Point {
+      constructor(x, y, pinned = false) {
+        this.x = x;
+        this.y = y;
+        this.prevX = x;
+        this.prevY = y;
+        this.vx = 0;
+        this.vy = 0;
+        this.mass = 1;
+        this.pinned = pinned;
+      }
+      integrate(dt) {
+        if (this.pinned) {
+          this.x = this.prevX = this.x;
+          this.y = this.prevY = this.y;
+          this.vx = this.vy = 0;
+          return;
+        }
+        const vx = (this.x - this.prevX) * (1 - params.damping);
+        const vy = (this.y - this.prevY) * (1 - params.damping);
+        this.prevX = this.x;
+        this.prevY = this.y;
+        this.x += vx + this.ax * dt * dt;
+        this.y += vy + this.ay * dt * dt;
+        this.vx = (this.x - this.prevX) / dt;
+        this.vy = (this.y - this.prevY) / dt;
+      }
+      addForce(fx, fy) {
+        this.ax = (this.ax || 0) + fx / this.mass;
+        this.ay = (this.ay || 0) + fy / this.mass;
+      }
+      resetForce() {
+        this.ax = 0;
+        this.ay = 0;
+      }
+    }
+
+    class Spring {
+      constructor(a, b, rest, stiffness, type) {
+        this.a = a;
+        this.b = b;
+        this.restLength = rest;
+        this.stiffness = stiffness;
+        this.type = type;
+      }
+      solve() {
+        const dx = this.b.x - this.a.x;
+        const dy = this.b.y - this.a.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        const diff = (dist - this.restLength) / dist;
+        const force = diff * this.stiffness;
+        const half = 0.5;
+        if (!this.a.pinned) {
+          this.a.x += dx * force * half;
+          this.a.y += dy * force * half;
+        }
+        if (!this.b.pinned) {
+          this.b.x -= dx * force * half;
+          this.b.y -= dy * force * half;
+        }
+      }
+    }
+
+    const cloth = {
+      points: [],
+      springs: [],
+      anchorX: 0,
+      anchorY: 0,
+      spacing: 18,
+    };
+
+    function rebuildCloth() {
+      cloth.points = [];
+      const cols = params.cols;
+      const rows = params.rows;
+      const spacing = Math.min(width * 0.7 / cols, height * 0.6 / rows);
+      cloth.spacing = spacing;
+      const offsetX = (width - (cols - 1) * spacing) / 2;
+      const offsetY = height * 0.18;
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          const px = offsetX + x * spacing;
+          const py = offsetY + y * spacing;
+          cloth.points.push(new Point(px, py));
+        }
+      }
+      rebuildSprings();
+      applyPins();
+      labels.nodes.textContent = cloth.points.length;
+      labels.springs.textContent = cloth.springs.length;
+    }
+
+    function rebuildSprings() {
+      cloth.springs = [];
+      const cols = params.cols;
+      const rows = params.rows;
+      const spacing = cloth.spacing;
+      const stiffness = params.stiffness * 0.0005;
+
+      function index(x, y) {
+        return y * cols + x;
+      }
+
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          if (x < cols - 1) addSpring(index(x, y), index(x + 1, y), spacing, stiffness, "structural");
+          if (y < rows - 1) addSpring(index(x, y), index(x, y + 1), spacing, stiffness, "structural");
+          if (params.bending !== "none") {
+            const bendRest = spacing * 2;
+            if (x < cols - 2) addSpring(index(x, y), index(x + 2, y), bendRest, stiffness * 0.5, "bend");
+            if (y < rows - 2) addSpring(index(x, y), index(x, y + 2), bendRest, stiffness * 0.5, "bend");
+          }
+          if (params.bending !== "none") {
+            if (x < cols - 1 && y < rows - 1) addSpring(index(x, y), index(x + 1, y + 1), spacing * Math.sqrt(2), stiffness * 0.7, "shear");
+            if (x > 0 && y < rows - 1) addSpring(index(x, y), index(x - 1, y + 1), spacing * Math.sqrt(2), stiffness * 0.7, "shear");
+          }
+        }
+      }
+      labels.springs.textContent = cloth.springs.length;
+    }
+
+    function addSpring(ai, bi, rest, stiffness, type) {
+      const a = cloth.points[ai];
+      const b = cloth.points[bi];
+      cloth.springs.push(new Spring(a, b, rest, stiffness, type));
+    }
+
+    function applyPins() {
+      const cols = params.cols;
+      const rows = params.rows;
+      cloth.points.forEach((p) => p.pinned = false);
+      if (params.pinMode === "none") return;
+      const topY = Math.min(...cloth.points.map(p => p.y));
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          const p = cloth.points[y * cols + x];
+          if (params.pinMode === "top" && y === 0) p.pinned = true;
+          if (params.pinMode === "corners" && y === 0 && (x === 0 || x === cols - 1)) p.pinned = true;
+        }
+      }
+    }
+
+    canvas.addEventListener("dblclick", () => {
+      params.pinMode = "none";
+      controls.pinMode.value = "none";
+      applyPins();
+    });
+
+    const interaction = {
+      dragging: false,
+      point: null,
+      offsetX: 0,
+      offsetY: 0,
+    };
+
+    canvas.addEventListener("mousedown", (event) => {
+      const { x, y } = getCursor(event);
+      const point = findNearestPoint(x, y);
+      if (!point) return;
+      interaction.dragging = true;
+      interaction.point = point;
+      interaction.offsetX = point.x - x;
+      interaction.offsetY = point.y - y;
+      point.pinned = true;
+    });
+
+    canvas.addEventListener("mousemove", (event) => {
+      if (!interaction.dragging || !interaction.point) return;
+      const { x, y } = getCursor(event);
+      interaction.point.x = x + interaction.offsetX;
+      interaction.point.y = y + interaction.offsetY;
+      interaction.point.prevX = interaction.point.x;
+      interaction.point.prevY = interaction.point.y;
+    });
+
+    window.addEventListener("mouseup", () => {
+      if (interaction.dragging && interaction.point) {
+        if (params.pinMode === "none") interaction.point.pinned = false;
+        interaction.point = null;
+      }
+      interaction.dragging = false;
+    });
+
+    function getCursor(evt) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: ((evt.clientX ?? evt.pageX) - rect.left),
+        y: ((evt.clientY ?? evt.pageY) - rect.top),
+      };
+    }
+
+    function findNearestPoint(x, y) {
+      let nearest = null;
+      let minDist = 36;
+      for (const p of cloth.points) {
+        const d = Math.hypot(p.x - x, p.y - y);
+        if (d < minDist) {
+          minDist = d;
+          nearest = p;
+        }
+      }
+      return nearest;
+    }
+
+    function getWindDirection() {
+      const angle = params.windAngle * Math.PI / 180;
+      return { x: Math.cos(angle), y: Math.sin(angle) };
+    }
+
+    function simulate(dt) {
+      const windDir = getWindDirection();
+      for (const p of cloth.points) {
+        p.resetForce();
+        p.addForce(0, params.gravity * p.mass);
+        const windForce = params.wind * (0.3 + Math.random() * 0.7);
+        p.addForce(windDir.x * windForce, windDir.y * windForce * 0.5);
+      }
+
+      const iterations = 8;
+      for (let i = 0; i < iterations; i++) {
+        for (const spring of cloth.springs) {
+          spring.solve();
+        }
+      }
+
+      for (const p of cloth.points) {
+        p.integrate(dt);
+      }
+
+      const floor = height * 0.9;
+      for (const p of cloth.points) {
+        if (p.y > floor) {
+          p.y = floor;
+        }
+      }
+    }
+
+    function render() {
+      ctx.clearRect(0, 0, width, height);
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = "rgba(129,140,248,0.55)";
+      for (const spring of cloth.springs) {
+        ctx.beginPath();
+        ctx.moveTo(spring.a.x, spring.a.y);
+        ctx.lineTo(spring.b.x, spring.b.y);
+        ctx.stroke();
+      }
+
+      for (const p of cloth.points) {
+        ctx.beginPath();
+        ctx.fillStyle = p.pinned ? "#facc15" : "#38bdf8";
+        ctx.arc(p.x, p.y, p.pinned ? 4.5 : 3.5, 0, Math.PI * 2);
+        ctx.fill();
+        if (interaction.point === p) {
+          ctx.beginPath();
+          const glow = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 28);
+          glow.addColorStop(0, "rgba(250,204,21,0.32)");
+          glow.addColorStop(1, "rgba(250,204,21,0)");
+          ctx.fillStyle = glow;
+          ctx.arc(p.x, p.y, 28, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
+    let lastTime = performance.now();
+    let fpsTimer = 0;
+    let frames = 0;
+
+    function loop(time) {
+      const dt = Math.min(0.03, (time - lastTime) / 1000 || 0.016);
+      lastTime = time;
+
+      if (params.running) {
+        simulate(dt);
+      }
+
+      let speedSum = 0;
+      for (const p of cloth.points) {
+        speedSum += Math.hypot(p.vx || 0, p.vy || 0);
+      }
+      labels.speed.textContent = (speedSum / Math.max(1, cloth.points.length)).toFixed(1);
+
+      render();
+
+      frames++;
+      fpsTimer += dt;
+      if (fpsTimer >= 0.5) {
+        labels.fps.textContent = Math.round(frames / fpsTimer);
+        fpsTimer = 0;
+        frames = 0;
+      }
+
+      requestAnimationFrame(loop);
+    }
+
+    rebuildCloth();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
