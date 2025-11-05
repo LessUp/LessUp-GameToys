@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Webfront · 交互式前端演示集</title>
+  <style>
+    :root {
+      --bg-dark: #0a0e14;
+      --bg-mid: #0f1419;
+      --bg-light: #1a1f29;
+      --text: #e6eef8;
+      --text-muted: #8b95a8;
+      --accent-1: #4ea1ff;
+      --accent-2: #a855f7;
+      --accent-3: #ec4899;
+      --accent-4: #f59e0b;
+      --card-bg: rgba(26, 31, 41, 0.6);
+      --card-border: rgba(78, 161, 255, 0.15);
+      --shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: var(--bg-dark);
+      color: var(--text);
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif;
+      overflow-x: hidden;
+    }
+
+    body {
+      background: 
+        radial-gradient(circle at 20% 10%, rgba(78, 161, 255, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 80% 80%, rgba(168, 85, 247, 0.08) 0%, transparent 40%),
+        linear-gradient(135deg, var(--bg-dark) 0%, var(--bg-mid) 50%, var(--bg-dark) 100%);
+      position: relative;
+    }
+
+    /* Animated background particles */
+    .bg-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      opacity: 0.4;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 40px 24px;
+    }
+
+    /* Header */
+    header {
+      text-align: center;
+      padding: 60px 0 80px;
+      position: relative;
+    }
+
+    h1 {
+      font-size: clamp(2.5rem, 5vw, 4rem);
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent-1) 0%, var(--accent-2) 50%, var(--accent-3) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 16px;
+      letter-spacing: -0.02em;
+      animation: fadeInUp 0.8s ease-out;
+    }
+
+    .subtitle {
+      font-size: clamp(1rem, 2vw, 1.25rem);
+      color: var(--text-muted);
+      max-width: 600px;
+      margin: 0 auto 32px;
+      line-height: 1.6;
+      animation: fadeInUp 0.8s ease-out 0.1s both;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 20px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 999px;
+      font-size: 0.875rem;
+      color: var(--accent-1);
+      backdrop-filter: blur(10px);
+      animation: fadeInUp 0.8s ease-out 0.2s both;
+    }
+
+    .badge::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      background: var(--accent-1);
+      border-radius: 50%;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    /* Grid */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 28px;
+      margin-bottom: 60px;
+    }
+
+    @media (max-width: 768px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Category Title */
+    .category-title {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--text);
+      margin: 60px 0 24px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .category-title::before {
+      content: '';
+      width: 4px;
+      height: 28px;
+      background: linear-gradient(180deg, var(--accent-1), var(--accent-2));
+      border-radius: 2px;
+    }
+
+    /* Card */
+    .card {
+      position: relative;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      overflow: hidden;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      backdrop-filter: blur(10px);
+      animation: fadeInUp 0.6s ease-out both;
+      cursor: pointer;
+      text-decoration: none;
+      color: inherit;
+      display: block;
+    }
+
+    .card:hover {
+      transform: translateY(-8px);
+      border-color: var(--accent-1);
+      box-shadow: var(--shadow), 0 0 40px rgba(78, 161, 255, 0.2);
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 200px;
+      background: linear-gradient(135deg, var(--accent-1) 0%, var(--accent-2) 100%);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      z-index: 0;
+    }
+
+    .card:hover::before {
+      opacity: 0.1;
+    }
+
+    .card-preview {
+      position: relative;
+      height: 220px;
+      background: linear-gradient(135deg, var(--bg-light) 0%, var(--bg-mid) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .card-preview canvas {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .card-icon {
+      font-size: 4rem;
+      opacity: 0.6;
+      filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
+      transition: transform 0.3s ease;
+    }
+
+    .card:hover .card-icon {
+      transform: scale(1.1) rotate(5deg);
+    }
+
+    .card-content {
+      position: relative;
+      padding: 24px;
+      z-index: 1;
+    }
+
+    .card-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: var(--text);
+    }
+
+    .card-description {
+      font-size: 0.9375rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin-bottom: 16px;
+    }
+
+    .card-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .tag {
+      padding: 4px 12px;
+      background: rgba(78, 161, 255, 0.1);
+      border: 1px solid rgba(78, 161, 255, 0.2);
+      border-radius: 6px;
+      font-size: 0.75rem;
+      color: var(--accent-1);
+      font-weight: 600;
+    }
+
+    .tag.physics { 
+      background: rgba(168, 85, 247, 0.1); 
+      border-color: rgba(168, 85, 247, 0.2); 
+      color: var(--accent-2); 
+    }
+
+    .tag.animation { 
+      background: rgba(236, 72, 153, 0.1); 
+      border-color: rgba(236, 72, 153, 0.2); 
+      color: var(--accent-3); 
+    }
+
+    .tag.interactive { 
+      background: rgba(245, 158, 11, 0.1); 
+      border-color: rgba(245, 158, 11, 0.2); 
+      color: var(--accent-4); 
+    }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      padding: 40px 24px;
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      border-top: 1px solid var(--card-border);
+      margin-top: 60px;
+    }
+
+    /* Animations */
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Stagger animation delays */
+    .card:nth-child(1) { animation-delay: 0s; }
+    .card:nth-child(2) { animation-delay: 0.05s; }
+    .card:nth-child(3) { animation-delay: 0.1s; }
+    .card:nth-child(4) { animation-delay: 0.15s; }
+    .card:nth-child(5) { animation-delay: 0.2s; }
+    .card:nth-child(6) { animation-delay: 0.25s; }
+    .card:nth-child(7) { animation-delay: 0.3s; }
+    .card:nth-child(8) { animation-delay: 0.35s; }
+    .card:nth-child(9) { animation-delay: 0.4s; }
+  </style>
+</head>
+<body>
+  <canvas class="bg-canvas" id="bgCanvas"></canvas>
+
+  <div class="container">
+    <header>
+      <h1>Webfront</h1>
+      <p class="subtitle">探索交互式前端演示 · 物理模拟 · 视觉特效 · 创意动画</p>
+      <div class="badge">
+        <span>纯前端实现</span>
+        <span>·</span>
+        <span>无需构建工具</span>
+      </div>
+    </header>
+
+    <h2 class="category-title">物理模拟</h2>
+    <div class="grid">
+      <a href="Free-Fall-of-Small-Balls-in-a-Hexagon/" class="card">
+        <div class="card-preview">
+          <div class="card-icon">⬡</div>
+        </div>
+        <div class="card-content">
+          <h3 class="card-title">六边形小球自由落体</h3>
+          <p class="card-description">在规则六边形容器中模拟小球的重力、碰撞与弹性反弹</p>
+          <div class="card-tags">
+            <span class="tag physics">物理引擎</span>
+            <span class="tag interactive">交互式</span>
+            <span class="tag">Canvas</span>
+          </div>
+        </div>
+      </a>
+
+      <a href="Double-Pendulum/" class="card">
+        <div class="card-preview">
+          <div class="card-icon">🎭</div>
+        </div>
+        <div class="card-content">
+          <h3 class="card-title">双摆混沌系统</h3>
+          <p class="card-description">经典双摆物理系统，展示混沌运动与轨迹追踪</p>
+          <div class="card-tags">
+            <span class="tag physics">混沌理论</span>
+            <span class="tag animation">轨迹追踪</span>
+            <span class="tag">Canvas</span>
+          </div>
+        </div>
+      </a>
+
+      <a href="Particle-System/" class="card">
+        <div class="card-preview">
+          <div class="card-icon">✨</div>
+        </div>
+        <div class="card-content">
+          <h3 class="card-title">粒子系统引擎</h3>
+          <p class="card-description">可配置的粒子系统，支持重力、风力、摩擦力等多种力场</p>
+          <div class="card-tags">
+            <span class="tag physics">粒子物理</span>
+            <span class="tag interactive">力场模拟</span>
+            <span class="tag">Canvas</span>
+          </div>
+        </div>
+      </a>
+
+      <a href="Wave-Simulation/" class="card">
+        <div class="card-preview">
+          <div class="card-icon">🌊</div>
+        </div>
+        <div class="card-content">
+          <h3 class="card-title">波纹与流体模拟</h3>
+          <p class="card-description">交互式水波传播与流体动力学可视化</p>
+          <div class="card-tags">
+            <span class="tag physics">流体力学</span>
+            <span class="tag interactive">交互式</span>
+            <span class="tag">Canvas</span>
+          </div>
+        </div>
+      </a>
+
+      <a href="Spring-Physics/" class="card">
+        <div class="card-preview">
+          <div class="card-icon">🔗</div>
+        </div>
+        <div class="card-content">
+          <h3 class="card-title">弹簧物理系统</h3>
+          <p class="card-description">可交互的弹簧-质点系统，模拟布料与软体动力学</p>
+          <div class="card-tags">
+            <span class="tag physics">弹簧力学</span>
+            <span class="tag interactive">拖拽交互</span>
+            <span class="tag">Canvas</span>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <h2 class="category-title">视觉特效</h2>
+    <div class="grid">
+      <a href="Particle-Effects/" class="card">
+        <div class="card-preview">
+          <div class="card-icon">💥</div>
+        </div>
+        <div class="card-content">
+          <h3 class="card-title">粒子爆炸特效</h3>
+          <p class="card-description">鼠标交互触发的烟花、爆炸与粒子轨迹效果</p>
+          <div class="card-tags">
+            <span class="tag animation">粒子动画</span>
+            <span class="tag interactive">鼠标交互</span>
+            <span class="tag">Canvas</span>
+          </div>
+        </div>
+      </a>
+
+      <a href="Morphing-Shapes/" class="card">
+        <div class="card-preview">
+          <div class="card-icon">🔷</div>
+        </div>
+        <div class="card-content">
+          <h3 class="card-title">形状变形动画</h3>
+          <p class="card-description">几何图形的平滑变形与过渡动画</p>
+          <div class="card-tags">
+            <span class="tag animation">形状插值</span>
+            <span class="tag">SVG/Canvas</span>
+          </div>
+        </div>
+      </a>
+
+      <a href="3D-Transforms/" class="card">
+        <div class="card-preview">
+          <div class="card-icon">🎲</div>
+        </div>
+        <div class="card-content">
+          <h3 class="card-title">3D 图形变换</h3>
+          <p class="card-description">纯 CSS 与 Canvas 的 3D 旋转、透视与光影效果</p>
+          <div class="card-tags">
+            <span class="tag animation">3D 变换</span>
+            <span class="tag">CSS 3D</span>
+            <span class="tag">Canvas</span>
+          </div>
+        </div>
+      </a>
+
+      <a href="weather/" class="card">
+        <div class="card-preview">
+          <div class="card-icon">🌤️</div>
+        </div>
+        <div class="card-content">
+          <h3 class="card-title">动画天气卡片</h3>
+          <p class="card-description">精美的天气状态卡片，含日出、风、雨、雪等动画效果</p>
+          <div class="card-tags">
+            <span class="tag animation">CSS 动画</span>
+            <span class="tag">关键帧</span>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <h2 class="category-title">3D 交互</h2>
+    <div class="grid">
+      <a href="Cube-Simulation/" class="card">
+        <div class="card-preview">
+          <div class="card-icon">🎨</div>
+        </div>
+        <div class="card-content">
+          <h3 class="card-title">3×3 魔方模拟器</h3>
+          <p class="card-description">完整的 3D 魔方，支持各种旋转操作、打乱与视角控制</p>
+          <div class="card-tags">
+            <span class="tag interactive">3D 交互</span>
+            <span class="tag">CSS 3D</span>
+            <span class="tag animation">变换动画</span>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <footer>
+      <p>CodingToys · Webfront · 保持简单（KISS）· 开箱即用</p>
+    </footer>
+  </div>
+
+  <script>
+    // Animated background with floating particles
+    const canvas = document.getElementById('bgCanvas');
+    const ctx = canvas.getContext('2d');
+
+    let width = canvas.width = window.innerWidth;
+    let height = canvas.height = window.innerHeight;
+
+    window.addEventListener('resize', () => {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+    });
+
+    const particles = [];
+    const particleCount = 80;
+
+    class Particle {
+      constructor() {
+        this.reset();
+        this.y = Math.random() * height;
+      }
+
+      reset() {
+        this.x = Math.random() * width;
+        this.y = 0;
+        this.vy = 0.3 + Math.random() * 0.5;
+        this.vx = (Math.random() - 0.5) * 0.3;
+        this.size = 1 + Math.random() * 2;
+        this.opacity = 0.2 + Math.random() * 0.3;
+        this.hue = 180 + Math.random() * 60; // Blue-ish tones
+      }
+
+      update() {
+        this.x += this.vx;
+        this.y += this.vy;
+
+        if (this.y > height || this.x < 0 || this.x > width) {
+          this.reset();
+        }
+      }
+
+      draw() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fillStyle = `hsla(${this.hue}, 70%, 60%, ${this.opacity})`;
+        ctx.fill();
+
+        // Draw connections to nearby particles
+        particles.forEach(p => {
+          if (p === this) return;
+          const dx = this.x - p.x;
+          const dy = this.y - p.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          if (dist < 150) {
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y);
+            ctx.lineTo(p.x, p.y);
+            ctx.strokeStyle = `hsla(${this.hue}, 70%, 60%, ${0.1 * (1 - dist / 150)})`;
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
+          }
+        });
+      }
+    }
+
+    for (let i = 0; i < particleCount; i++) {
+      particles.push(new Particle());
+    }
+
+    function animate() {
+      ctx.clearRect(0, 0, width, height);
+      
+      particles.forEach(p => {
+        p.update();
+        p.draw();
+      });
+
+      requestAnimationFrame(animate);
+    }
+
+    animate();
+  </script>
+</body>
+</html>

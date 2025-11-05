@@ -1,14 +1,14 @@
 # terminal-dance
 
-终端动画与轻量小游戏合集（KISS）：河流、火车、风扇（fun）、小猫（cat）、贪吃蛇（snake）、康威生命游戏（life）。支持 ASCII 与 Emoji 两种风格（按需）。
+终端动画与轻量小游戏合集（KISS）：河流、火车、旋转风扇（fun）、跑动小猫（cat）、贪吃蛇（snake）、康威生命游戏（life）。支持 ASCII 与 Emoji 两种风格（按需）。
 
 ## 目录结构
 
-- `river/` 河流动画（Go/Rust）
-- `train/` 小火车动画（Go/Rust）
-- `fun/` 旋转风扇（Go/Rust）
-- `cat/` 跑动小猫（Go/Rust）
-- `snake/` 贪吃蛇游戏（Go/Rust）
+- `river/` 河流动画（Go/Rust，已存在）
+- `train/` 小火车动画（Go/Rust，已存在）
+- `fun/` 旋转风扇（Go/Rust，本次新增）
+- `cat/` 跑动小猫（Go/Rust，本次新增）
+- `snake/` 贪吃蛇终端小游戏（Go/Rust）
 - `life/` 康威生命游戏（Go/Rust）
 
 ## 构建与运行
@@ -39,7 +39,7 @@ go run ./ -emoji=false -speed=100 -w=40 -h=20 -density=0.3
 参数说明（Go）：
 - `-emoji` 是否使用 Emoji 风格
 - `-speed` 每帧延迟(毫秒)，数值越小越快
-- `-w` 宽度参数（小猫/贪吃蛇/生命游戏）
+- `-w` 横向可用宽度（小猫/贪吃蛇/生命游戏）
 - `-h` 高度参数（贪吃蛇/生命游戏）
 - `-density` 生命游戏初始细胞密度(0.0-1.0)
 
@@ -69,12 +69,12 @@ cargo run --release -- --emoji=false --speed=100 --w=40 --h=20 --density=0.3
 参数说明（Rust）：
 - `--emoji` 是否使用 Emoji 风格
 - `--speed` 每帧延迟(毫秒)，数值越小越快
-- `--w` 宽度参数（小猫/贪吃蛇/生命游戏）
+- `--w` 横向可用宽度（小猫/贪吃蛇/生命游戏）
 - `--h` 高度参数（贪吃蛇/生命游戏）
 - `--density` 生命游戏初始细胞密度(0.0-1.0)
 
 ## 交互
-- 各动画均支持 `Ctrl+C` 退出，会恢复光标显示。
+- 各动画/游戏均支持 `Ctrl+C` 退出，会恢复光标显示。
 - 贪吃蛇：使用 `WASD` 或方向键控制方向，`Q` 键退出。
 - 生命游戏：自动演化，`Ctrl+C` 退出。
 

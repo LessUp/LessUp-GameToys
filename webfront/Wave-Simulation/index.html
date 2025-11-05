@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>波纹与流体模拟 · 高度场水面</title>
+  <style>
+    :root {
+      --bg: #04070d;
+      --panel: rgba(10, 17, 28, 0.78);
+      --edge: rgba(59, 130, 246, 0.2);
+      --text: #e6f0ff;
+      --muted: #97a4ba;
+      --accent: #38bdf8;
+      --accent-2: #0ea5e9;
+      --radius: 18px;
+      --shadow: 0 20px 48px rgba(3, 7, 18, 0.65);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100vh;
+      font: 14px/1.5 "SF Pro Display", system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: radial-gradient(circle at 20% 15%, rgba(14, 165, 233, 0.16), transparent 60%),
+                  radial-gradient(circle at 80% 85%, rgba(56, 189, 248, 0.12), transparent 55%),
+                  linear-gradient(160deg, #05080f, #0b1220);
+      color: var(--text);
+      padding: 32px clamp(12px, 6vw, 36px);
+      display: flex;
+      justify-content: center;
+    }
+
+    .layout {
+      width: min(1080px, 100%);
+      display: grid;
+      gap: 24px;
+    }
+
+    header {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(26px, 4vw, 34px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      max-width: 660px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 18px;
+      backdrop-filter: blur(12px);
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+    }
+
+    .control {
+      display: grid;
+      gap: 6px;
+    }
+
+    .control label {
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    input[type="range"] {
+      accent-color: var(--accent);
+    }
+
+    select {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      background: rgba(6, 11, 19, 0.8);
+      color: var(--text);
+      font-weight: 600;
+      outline: none;
+    }
+
+    .buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid rgba(56, 189, 248, 0.24);
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.3), rgba(14, 165, 233, 0.28));
+      color: var(--text);
+      font-weight: 600;
+      padding: 8px 16px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: transform 0.15s ease, border-color 0.2s ease;
+    }
+
+    button:hover { transform: translateY(-1px); border-color: rgba(56, 189, 248, 0.6); }
+    button:active { transform: translateY(0); }
+    button.primary {
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.6), rgba(14, 165, 233, 0.5));
+      border-color: transparent;
+    }
+
+    .stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      color: var(--muted);
+      margin-top: 14px;
+      font-size: 12px;
+    }
+
+    .chip {
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(56, 189, 248, 0.22);
+      background: rgba(5, 9, 16, 0.75);
+      letter-spacing: 0.2px;
+    }
+
+    .stage {
+      position: relative;
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1px solid rgba(56, 189, 248, 0.18);
+      box-shadow: inset 0 0 0 1px rgba(3,7,18,0.8);
+      min-height: 420px;
+      height: min(70vh, 600px);
+      background: radial-gradient(circle at 50% 35%, rgba(56,189,248,0.22), rgba(24,54,83,0.9) 55%, rgba(5,8,13,0.95) 90%);
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      mix-blend-mode: screen;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 8px;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <header>
+      <h1>波纹与流体模拟</h1>
+      <p class="subtitle">采用高度场离散波动方程模拟水面波纹，可调节阻尼、传播速度与扰动强度，同时提供多种着色模式展示法线、速度与深度。</p>
+    </header>
+
+    <div class="panel">
+      <div class="controls">
+        <div class="control">
+          <label>阻尼系数 <span id="labelDamping">0.985</span></label>
+          <input id="damping" type="range" min="0.90" max="0.999" step="0.001" value="0.985" />
+        </div>
+        <div class="control">
+          <label>传播速度 <span id="labelSpeed">1.00</span></label>
+          <input id="speed" type="range" min="0.2" max="2.0" step="0.05" value="1.0" />
+        </div>
+        <div class="control">
+          <label>每帧扰动概率 <span id="labelDropProb">0.015</span></label>
+          <input id="dropProb" type="range" min="0" max="0.05" step="0.001" value="0.015" />
+        </div>
+        <div class="control">
+          <label>扰动强度 <span id="labelDropStrength">0.35</span></label>
+          <input id="dropStrength" type="range" min="0.1" max="1" step="0.05" value="0.35" />
+        </div>
+        <div class="control">
+          <label>分辨率 (px) <span id="labelResolution">180</span></label>
+          <input id="resolution" type="range" min="80" max="240" step="20" value="180" />
+        </div>
+        <div class="control">
+          <label>着色模式</label>
+          <select id="shade">
+            <option value="water">水面色彩</option>
+            <option value="normal">法线渲染</option>
+            <option value="velocity">速度矢量</option>
+            <option value="depth">深度视图</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="buttons">
+        <button id="toggle">暂停</button>
+        <button id="drop" class="primary">中心水滴</button>
+        <button id="clear">静止水面</button>
+      </div>
+
+      <div class="stats">
+        <span class="chip">FPS：<strong id="labelFPS">0</strong></span>
+        <span class="chip">最大位移：<strong id="labelDisplacement">0</strong></span>
+        <span class="chip">平均速度：<strong id="labelAverageVelocity">0</strong></span>
+      </div>
+      <div class="hint">点击/拖拽添加扰动 · 按住 Shift 创建负扰动 · 支持触摸。视图可根据窗口自适应。</div>
+    </div>
+
+    <div class="stage">
+      <canvas id="canvas"></canvas>
+    </div>
+  </div>
+
+  <script>
+    "use strict";
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    let width, height, dpr;
+    function resize() {
+      dpr = Math.max(1, window.devicePixelRatio || 1);
+      const rect = canvas.getBoundingClientRect();
+      width = Math.floor(rect.width);
+      height = Math.floor(rect.height);
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(dpr, dpr);
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    const params = {
+      damping: 0.985,
+      speed: 1.0,
+      dropProb: 0.015,
+      dropStrength: 0.35,
+      resolution: 180,
+      shade: "water",
+      running: true,
+    };
+
+    const controls = {
+      damping: document.getElementById("damping"),
+      speed: document.getElementById("speed"),
+      dropProb: document.getElementById("dropProb"),
+      dropStrength: document.getElementById("dropStrength"),
+      resolution: document.getElementById("resolution"),
+      shade: document.getElementById("shade"),
+      toggle: document.getElementById("toggle"),
+      drop: document.getElementById("drop"),
+      clear: document.getElementById("clear"),
+    };
+
+    const labels = {
+      damping: document.getElementById("labelDamping"),
+      speed: document.getElementById("labelSpeed"),
+      dropProb: document.getElementById("labelDropProb"),
+      dropStrength: document.getElementById("labelDropStrength"),
+      resolution: document.getElementById("labelResolution"),
+      fps: document.getElementById("labelFPS"),
+      displacement: document.getElementById("labelDisplacement"),
+      avgVelocity: document.getElementById("labelAverageVelocity"),
+    };
+
+    function updateLabels() {
+      labels.damping.textContent = params.damping.toFixed(3);
+      labels.speed.textContent = params.speed.toFixed(2);
+      labels.dropProb.textContent = params.dropProb.toFixed(3);
+      labels.dropStrength.textContent = params.dropStrength.toFixed(2);
+      labels.resolution.textContent = params.resolution;
+    }
+    updateLabels();
+
+    Object.entries({
+      damping: (v) => params.damping = parseFloat(v),
+      speed: (v) => params.speed = parseFloat(v),
+      dropProb: (v) => params.dropProb = parseFloat(v),
+      dropStrength: (v) => params.dropStrength = parseFloat(v),
+      resolution: (v) => { params.resolution = parseInt(v, 10); rebuildGrid(); },
+      shade: (v) => params.shade = v,
+    }).forEach(([key, fn]) => {
+      controls[key].addEventListener("input", (e) => {
+        fn(e.target.value);
+        updateLabels();
+      });
+    });
+
+    controls.toggle.addEventListener("click", () => {
+      params.running = !params.running;
+      controls.toggle.textContent = params.running ? "暂停" : "继续";
+    });
+
+    controls.drop.addEventListener("click", () => {
+      disturb(Math.floor(grid.cols / 2), Math.floor(grid.rows / 2), params.dropStrength, false);
+    });
+
+    controls.clear.addEventListener("click", () => {
+      grid.curr.fill(0);
+      grid.prev.fill(0);
+    });
+
+    const grid = {
+      cols: 0,
+      rows: 0,
+      curr: new Float32Array(0),
+      prev: new Float32Array(0),
+      velocity: new Float32Array(0),
+    };
+
+    function rebuildGrid() {
+      const cols = params.resolution;
+      const aspect = width / height || 1;
+      const rows = Math.max(20, Math.floor(cols / aspect));
+      grid.cols = cols;
+      grid.rows = rows;
+      grid.curr = new Float32Array(cols * rows);
+      grid.prev = new Float32Array(cols * rows);
+      grid.velocity = new Float32Array(cols * rows);
+    }
+    rebuildGrid();
+
+    function disturb(ix, iy, strength, invert) {
+      const radius = 4;
+      for (let y = -radius; y <= radius; y++) {
+        for (let x = -radius; x <= radius; x++) {
+          const fx = ix + x;
+          const fy = iy + y;
+          if (fx <= 1 || fy <= 1 || fx >= grid.cols - 1 || fy >= grid.rows - 1) continue;
+          const dist = Math.hypot(x, y);
+          if (dist > radius) continue;
+          const falloff = (1 - dist / radius) ** 2;
+          const idx = fy * grid.cols + fx;
+          grid.curr[idx] += (invert ? -1 : 1) * strength * falloff;
+        }
+      }
+    }
+
+    canvas.addEventListener("mousedown", (event) => {
+      state.dragging = true;
+      addDisturbance(event);
+    });
+    canvas.addEventListener("mousemove", (event) => {
+      if (!state.dragging) return;
+      addDisturbance(event);
+    });
+    window.addEventListener("mouseup", () => state.dragging = false);
+
+    canvas.addEventListener("touchstart", (event) => {
+      state.dragging = true;
+      addDisturbance(event.touches[0]);
+      event.preventDefault();
+    }, { passive: false });
+    canvas.addEventListener("touchmove", (event) => {
+      if (!state.dragging) return;
+      addDisturbance(event.touches[0]);
+      event.preventDefault();
+    }, { passive: false });
+    window.addEventListener("touchend", () => state.dragging = false);
+
+    const state = { dragging: false };
+
+    function addDisturbance(evt) {
+      const rect = canvas.getBoundingClientRect();
+      const x = ((evt.clientX ?? evt.pageX) - rect.left) / rect.width;
+      const y = ((evt.clientY ?? evt.pageY) - rect.top) / rect.height;
+      const ix = Math.floor(x * grid.cols);
+      const iy = Math.floor(y * grid.rows);
+      disturb(ix, iy, params.dropStrength, evt.shiftKey);
+    }
+
+    function simulate(speed) {
+      const { cols, rows, curr, prev, velocity } = grid;
+      const k = speed * speed;
+      let maxDisp = 0;
+      let avgVel = 0;
+      for (let y = 1; y < rows - 1; y++) {
+        for (let x = 1; x < cols - 1; x++) {
+          const idx = y * cols + x;
+          const laplace = (
+            prev[idx - cols] + prev[idx + cols] +
+            prev[idx - 1] + prev[idx + 1]
+          ) * 0.25 - prev[idx];
+          let value = (2 * prev[idx] - curr[idx]) + k * laplace;
+          value *= params.damping;
+          curr[idx] = value;
+          velocity[idx] = value - prev[idx];
+          avgVel += Math.abs(velocity[idx]);
+          maxDisp = Math.max(maxDisp, Math.abs(value));
+        }
+      }
+      labels.displacement.textContent = maxDisp.toFixed(3);
+      labels.avgVelocity.textContent = (avgVel / (cols * rows)).toFixed(4);
+      const temp = grid.curr;
+      grid.curr = grid.prev;
+      grid.prev = temp;
+    }
+
+    const imageData = ctx.createImageData(width, height);
+
+    function render() {
+      const { cols, rows, prev, velocity } = grid;
+      const data = imageData.data;
+      const cellWidth = width / cols;
+      const cellHeight = height / rows;
+      for (let y = 0; y < height; y++) {
+        const gy = Math.floor(y / cellHeight);
+        const gy1 = Math.min(rows - 1, gy + 1);
+        const gy0 = Math.max(0, gy - 1);
+        for (let x = 0; x < width; x++) {
+          const gx = Math.floor(x / cellWidth);
+          const gx1 = Math.min(cols - 1, gx + 1);
+          const gx0 = Math.max(0, gx - 1);
+          const idx = gy * cols + gx;
+          const sample = prev[idx];
+          let r, g, b;
+          if (params.shade === "normal") {
+            const dx = (prev[gy * cols + gx1] - prev[gy * cols + gx0]) * 0.5;
+            const dy = (prev[gy1 * cols + gx] - prev[gy0 * cols + gx]) * 0.5;
+            const nx = -dx;
+            const ny = -dy;
+            const nz = 1;
+            const length = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+            r = Math.floor(((nx / length) * 0.5 + 0.5) * 255);
+            g = Math.floor(((ny / length) * 0.5 + 0.5) * 255);
+            b = Math.floor(((nz / length) * 0.5 + 0.5) * 255);
+          } else if (params.shade === "velocity") {
+            const vel = velocity[idx] * 160;
+            r = Math.floor(128 + vel * 2);
+            g = Math.floor(128 - vel * 1.2);
+            b = Math.floor(255 - Math.abs(vel) * 4);
+          } else if (params.shade === "depth") {
+            const s = sample * 220;
+            const shade = 128 + s;
+            r = shade;
+            g = shade;
+            b = 255 - shade;
+          } else {
+            const heightColor = Math.max(-1, Math.min(1, sample * 4));
+            const shallow = Math.pow(Math.max(0, 1 - Math.abs(heightColor)), 1.5);
+            const foam = Math.max(0, heightColor);
+            const deep = Math.max(0, -heightColor);
+            r = Math.floor(20 + foam * 180);
+            g = Math.floor(60 + shallow * 120 + foam * 80);
+            b = Math.floor(120 + deep * 120 + foam * 60);
+          }
+          const di = (y * width + x) * 4;
+          data[di] = clampByte(r);
+          data[di + 1] = clampByte(g);
+          data[di + 2] = clampByte(b);
+          data[di + 3] = 255;
+        }
+      }
+      ctx.putImageData(imageData, 0, 0);
+    }
+
+    function clampByte(v) {
+      return Math.max(0, Math.min(255, v | 0));
+    }
+
+    let lastTime = performance.now();
+    let fpsTimer = 0;
+    let frames = 0;
+
+    function loop(time) {
+      const dt = Math.min(0.03, (time - lastTime) / 1000 || 0.016);
+      lastTime = time;
+
+      if (params.running) {
+        if (Math.random() < params.dropProb) {
+          const ix = 2 + Math.floor(Math.random() * (grid.cols - 4));
+          const iy = 2 + Math.floor(Math.random() * (grid.rows - 4));
+          disturb(ix, iy, params.dropStrength * (0.5 + Math.random() * 0.5), false);
+        }
+        simulate(params.speed);
+      }
+
+      render();
+
+      frames++;
+      fpsTimer += dt;
+      if (fpsTimer >= 0.5) {
+        labels.fps.textContent = Math.round(frames / fpsTimer);
+        fpsTimer = 0;
+        frames = 0;
+      }
+
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>

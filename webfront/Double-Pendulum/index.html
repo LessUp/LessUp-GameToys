@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>双摆混沌系统 · 物理模拟</title>
+  <style>
+    :root {
+      --bg: #0b0f16;
+      --panel: #111827;
+      --text: #e5ecff;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-2: #8b5cf6;
+      --border: rgba(56, 189, 248, 0.18);
+      --shadow: 0 12px 35px rgba(15, 23, 42, 0.45);
+      --radius: 16px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      background: radial-gradient(1200px 800px at 10% 10%, rgba(56,189,248,0.08), transparent 65%),
+                  radial-gradient(1200px 900px at 90% 100%, rgba(139,92,246,0.12), transparent 70%),
+                  var(--bg);
+      color: var(--text);
+      font: 14px/1.5 "SF Pro Display", "Helvetica Neue", system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 16px;
+    }
+
+    .app {
+      width: min(1120px, 100%);
+      display: grid;
+      gap: 20px;
+    }
+
+    .headline {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .title {
+      font-size: clamp(24px, 3vw, 32px);
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.02em;
+    }
+
+    .subtitle {
+      color: var(--muted);
+    }
+
+    .panel {
+      background: linear-gradient(160deg, rgba(17,24,39,0.85), rgba(17,24,39,0.6));
+      border: 1px solid rgba(148,163,184,0.12);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 18px;
+      backdrop-filter: blur(12px);
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px;
+    }
+
+    .control {
+      display: grid;
+      gap: 6px;
+    }
+
+    .control label {
+      font-weight: 600;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .control input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    .control input[type="number"] {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(148,163,184,0.25);
+      background: rgba(15,23,42,0.65);
+      color: var(--text);
+      font-weight: 600;
+      outline: none;
+    }
+
+    .control input[type="number"]::-webkit-inner-spin-button,
+    .control input[type="number"]::-webkit-outer-spin-button {
+      height: 18px;
+    }
+
+    .stats {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+      color: var(--muted);
+    }
+
+    .chip {
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(56,189,248,0.18);
+      background: rgba(14,22,35,0.75);
+      font-size: 12px;
+      letter-spacing: 0.2px;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid rgba(56,189,248,0.3);
+      background: linear-gradient(135deg, rgba(56,189,248,0.15), rgba(99,102,241,0.15));
+      color: var(--text);
+      font-weight: 600;
+      padding: 8px 14px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: transform 0.15s ease, border-color 0.15s ease, background 0.2s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      border-color: rgba(56,189,248,0.6);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button.primary {
+      background: linear-gradient(135deg, rgba(56,189,248,0.45), rgba(139,92,246,0.4));
+      border-color: transparent;
+    }
+
+    .stage {
+      position: relative;
+      background: radial-gradient(circle at 30% 30%, rgba(56,189,248,0.1), transparent 60%),
+                  linear-gradient(160deg, rgba(15,23,42,0.95), rgba(15,23,42,0.8));
+      border-radius: var(--radius);
+      border: 1px solid rgba(56,189,248,0.15);
+      overflow: hidden;
+      padding: clamp(12px, 2vw, 18px);
+      height: min(640px, 70vh);
+      min-height: 420px;
+      box-shadow: inset 0 0 0 1px rgba(14,22,35,0.9);
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border-radius: calc(var(--radius) - 8px);
+      background: radial-gradient(circle at 50% 35%, rgba(56,189,248,0.06), transparent 65%),
+                  #05070c;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 10px;
+      text-align: right;
+    }
+
+    .legend {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="headline">
+      <span class="title">双摆混沌系统</span>
+      <span class="subtitle">经典双摆模型的实时模拟，支持参数调节、轨迹追踪与能量监测。</span>
+    </div>
+
+    <div class="panel">
+      <div class="stats">
+        <span class="chip">角度 θ₁：<strong id="labelTheta1">0</strong>°</span>
+        <span class="chip">角度 θ₂：<strong id="labelTheta2">0</strong>°</span>
+        <span class="chip">能量：<strong id="labelEnergy">0</strong></span>
+        <span class="chip">FPS：<strong id="labelFPS">0</strong></span>
+      </div>
+
+      <div class="controls">
+        <div class="control">
+          <label>杆长度 L₁ <span id="labelL1">1.2m</span></label>
+          <input id="l1" type="range" min="0.5" max="2" step="0.01" value="1.2">
+        </div>
+        <div class="control">
+          <label>杆长度 L₂ <span id="labelL2">1.0m</span></label>
+          <input id="l2" type="range" min="0.5" max="2" step="0.01" value="1.0">
+        </div>
+        <div class="control">
+          <label>质点质量 m₁ <span id="labelM1">1.0kg</span></label>
+          <input id="m1" type="range" min="0.5" max="3" step="0.1" value="1.0">
+        </div>
+        <div class="control">
+          <label>质点质量 m₂ <span id="labelM2">1.0kg</span></label>
+          <input id="m2" type="range" min="0.5" max="3" step="0.1" value="1.0">
+        </div>
+        <div class="control">
+          <label>重力加速度 g <span id="labelG">9.81</span></label>
+          <input id="gravity" type="range" min="0" max="20" step="0.01" value="9.81">
+        </div>
+        <div class="control">
+          <label>阻尼系数 <span id="labelDamping">0.002</span></label>
+          <input id="damping" type="range" min="0" max="0.01" step="0.0005" value="0.002">
+        </div>
+        <div class="control">
+          <label>轨迹长度 <span id="labelTrail">400</span></label>
+          <input id="trail" type="range" min="50" max="1200" step="10" value="400">
+        </div>
+        <div class="control">
+          <label>初始角度 θ₁ (°)</label>
+          <input id="theta1" type="number" min="-179" max="179" step="1" value="120">
+        </div>
+        <div class="control">
+          <label>初始角度 θ₂ (°)</label>
+          <input id="theta2" type="number" min="-179" max="179" step="1" value="-10">
+        </div>
+      </div>
+
+      <div class="buttons" style="margin-top: 16px;">
+        <button id="toggle">暂停</button>
+        <button id="reset" class="primary">重置初始化</button>
+        <button id="clearTrail">清除轨迹</button>
+      </div>
+      <div class="legend">
+        <span><span class="dot" style="background:#38bdf8"></span> 质点 1</span>
+        <span><span class="dot" style="background:#f97316"></span> 质点 2</span>
+        <span><span class="dot" style="background:rgba(255,255,255,0.6);"></span> 轨迹</span>
+      </div>
+    </div>
+
+    <div class="stage">
+      <canvas id="canvas"></canvas>
+      <div class="hint">拖拽末端质点可重新设定初始角度 · 双击画布重置轨迹</div>
+    </div>
+  </div>
+
+  <script>
+    "use strict";
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    let dpr = Math.max(1, window.devicePixelRatio || 1);
+    let width, height;
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      width = Math.floor(rect.width);
+      height = Math.floor(rect.height);
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(dpr, dpr);
+    }
+    resizeCanvas();
+    window.addEventListener("resize", resizeCanvas);
+
+    const state = {
+      m1: 1,
+      m2: 1,
+      l1: 1.2,
+      l2: 1.0,
+      g: 9.81,
+      damping: 0.002,
+      theta1: (120 * Math.PI) / 180,
+      theta2: (-10 * Math.PI) / 180,
+      omega1: 0,
+      omega2: 0,
+      trailMax: 400,
+      running: true,
+      trail: [],
+    };
+
+    const controls = {
+      l1: document.getElementById("l1"),
+      l2: document.getElementById("l2"),
+      m1: document.getElementById("m1"),
+      m2: document.getElementById("m2"),
+      gravity: document.getElementById("gravity"),
+      damping: document.getElementById("damping"),
+      trail: document.getElementById("trail"),
+      theta1: document.getElementById("theta1"),
+      theta2: document.getElementById("theta2"),
+      toggle: document.getElementById("toggle"),
+      reset: document.getElementById("reset"),
+      clearTrail: document.getElementById("clearTrail"),
+    };
+
+    const labels = {
+      theta1: document.getElementById("labelTheta1"),
+      theta2: document.getElementById("labelTheta2"),
+      energy: document.getElementById("labelEnergy"),
+      fps: document.getElementById("labelFPS"),
+      l1: document.getElementById("labelL1"),
+      l2: document.getElementById("labelL2"),
+      m1: document.getElementById("labelM1"),
+      m2: document.getElementById("labelM2"),
+      g: document.getElementById("labelG"),
+      damping: document.getElementById("labelDamping"),
+      trail: document.getElementById("labelTrail"),
+    };
+
+    function updateLabels() {
+      labels.theta1.textContent = (state.theta1 * 180 / Math.PI).toFixed(1);
+      labels.theta2.textContent = (state.theta2 * 180 / Math.PI).toFixed(1);
+      labels.l1.textContent = `${state.l1.toFixed(2)}m`;
+      labels.l2.textContent = `${state.l2.toFixed(2)}m`;
+      labels.m1.textContent = `${state.m1.toFixed(1)}kg`;
+      labels.m2.textContent = `${state.m2.toFixed(1)}kg`;
+      labels.g.textContent = state.g.toFixed(2);
+      labels.damping.textContent = state.damping.toFixed(3);
+      labels.trail.textContent = state.trailMax;
+    }
+    updateLabels();
+
+    Object.entries({
+      l1: (v) => state.l1 = parseFloat(v),
+      l2: (v) => state.l2 = parseFloat(v),
+      m1: (v) => state.m1 = parseFloat(v),
+      m2: (v) => state.m2 = parseFloat(v),
+      gravity: (v) => state.g = parseFloat(v),
+      damping: (v) => state.damping = parseFloat(v),
+      trail: (v) => state.trailMax = Math.floor(v),
+    }).forEach(([key, fn]) => {
+      controls[key].addEventListener("input", (e) => {
+        fn(e.target.value);
+        updateLabels();
+      });
+    });
+
+    controls.theta1.addEventListener("change", (e) => {
+      state.theta1 = (parseFloat(e.target.value) * Math.PI) / 180;
+      resetTrail();
+      updateLabels();
+    });
+    controls.theta2.addEventListener("change", (e) => {
+      state.theta2 = (parseFloat(e.target.value) * Math.PI) / 180;
+      resetTrail();
+      updateLabels();
+    });
+
+    controls.toggle.addEventListener("click", () => {
+      state.running = !state.running;
+      controls.toggle.textContent = state.running ? "暂停" : "继续";
+    });
+
+    controls.reset.addEventListener("click", () => {
+      state.theta1 = (parseFloat(controls.theta1.value) * Math.PI) / 180;
+      state.theta2 = (parseFloat(controls.theta2.value) * Math.PI) / 180;
+      state.omega1 = 0;
+      state.omega2 = 0;
+      state.trail = [];
+      state.running = true;
+      controls.toggle.textContent = "暂停";
+      updateLabels();
+    });
+
+    function resetTrail() {
+      state.trail = [];
+    }
+
+    controls.clearTrail.addEventListener("click", resetTrail);
+
+    canvas.addEventListener("dblclick", resetTrail);
+
+    // drag end mass to set angles
+    let dragging = false;
+    canvas.addEventListener("mousedown", (e) => {
+      const { x, y } = getCanvasCoords(e);
+      const { x2, y2 } = getPositions();
+      const dist = Math.hypot(x - x2, y - y2);
+      if (dist < 18) {
+        dragging = true;
+        state.running = false;
+        controls.toggle.textContent = "继续";
+      }
+    });
+
+    canvas.addEventListener("mousemove", (e) => {
+      if (!dragging) return;
+      const { x, y } = getCanvasCoords(e);
+      const cx = width / 2;
+      const cy = height / 3;
+      const dx = x - cx;
+      const dy = y - cy;
+      const r = Math.hypot(dx, dy);
+      const angle = Math.atan2(dx, dy * -1);
+      // simple inverse kinematics: keep lengths constant via law of cosines
+      const L1 = state.l1 * 120;
+      const L2 = state.l2 * 120;
+      const clampR = Math.max(10, Math.min(L1 + L2 - 4, r));
+      const cosAngle2 = (clampR * clampR - L1 * L1 - L2 * L2) / (-2 * L1 * L2);
+      const angle2 = Math.acos(Math.max(-0.999, Math.min(0.999, cosAngle2)));
+      const angle1 = Math.atan2((clampR * clampR + L1 * L1 - L2 * L2) / (2 * L1 * clampR) * Math.sin(angle) + Math.sin(angle),
+                                (clampR * clampR + L1 * L1 - L2 * L2) / (2 * L1 * clampR) * Math.cos(angle) + Math.cos(angle));
+      state.theta1 = angle1;
+      state.theta2 = angle2 + angle1 - Math.PI;
+      state.omega1 = 0;
+      state.omega2 = 0;
+      updateLabels();
+    });
+
+    window.addEventListener("mouseup", () => {
+      if (dragging) {
+        dragging = false;
+        state.running = true;
+        controls.toggle.textContent = "暂停";
+      }
+    });
+
+    function getCanvasCoords(event) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (event.clientX - rect.left),
+        y: (event.clientY - rect.top),
+      };
+    }
+
+    function getPositions() {
+      const originX = width / 2;
+      const originY = height / 3;
+      const L1 = state.l1 * 120;
+      const L2 = state.l2 * 120;
+      const x1 = originX + L1 * Math.sin(state.theta1);
+      const y1 = originY + L1 * Math.cos(state.theta1);
+      const x2 = x1 + L2 * Math.sin(state.theta2);
+      const y2 = y1 + L2 * Math.cos(state.theta2);
+      return { originX, originY, x1, y1, x2, y2 };
+    }
+
+    function step(dt) {
+      const { m1, m2, l1, l2, g, damping } = state;
+      const { theta1, theta2, omega1, omega2 } = state;
+
+      const delta = theta1 - theta2;
+      const den1 = (2 * m1 + m2 - m2 * Math.cos(2 * delta));
+      const den2 = den1;
+
+      const num1 = -g * (2 * m1 + m2) * Math.sin(theta1)
+                  - m2 * g * Math.sin(theta1 - 2 * theta2)
+                  - 2 * Math.sin(delta) * m2 * (omega2 * omega2 * l2 + omega1 * omega1 * l1 * Math.cos(delta));
+      const alpha1 = num1 / (l1 * den1);
+
+      const num2 = 2 * Math.sin(delta) * (
+        omega1 * omega1 * l1 * (m1 + m2)
+        + g * (m1 + m2) * Math.cos(theta1)
+        + omega2 * omega2 * l2 * m2 * Math.cos(delta)
+      );
+      const alpha2 = num2 / (l2 * den2);
+
+      state.omega1 += (alpha1 - damping * omega1) * dt;
+      state.omega2 += (alpha2 - damping * omega2) * dt;
+      state.theta1 += state.omega1 * dt;
+      state.theta2 += state.omega2 * dt;
+    }
+
+    function computeEnergy() {
+      const { m1, m2, l1, l2, g, theta1, theta2, omega1, omega2 } = state;
+      const y1 = -l1 * Math.cos(theta1);
+      const y2 = y1 - l2 * Math.cos(theta2);
+      const v1 = l1 * omega1;
+      const v2x = l1 * omega1 * Math.cos(theta1) + l2 * omega2 * Math.cos(theta2);
+      const v2y = l1 * omega1 * Math.sin(theta1) + l2 * omega2 * Math.sin(theta2);
+      const kinetic = 0.5 * m1 * (v1 * v1) + 0.5 * m2 * (v2x * v2x + v2y * v2y);
+      const potential = (m1 * g * (y1 + l1)) + (m2 * g * (y2 + l1 + l2));
+      return kinetic + potential;
+    }
+
+    let lastTime = performance.now();
+    let fpsTimer = 0;
+    let frameCount = 0;
+
+    function render() {
+      const { originX, originY, x1, y1, x2, y2 } = getPositions();
+
+      ctx.clearRect(0, 0, width, height);
+
+      // trail
+      ctx.beginPath();
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = "rgba(255,255,255,0.35)";
+      for (let i = 0; i < state.trail.length - 1; i++) {
+        const p = state.trail[i];
+        const n = state.trail[i + 1];
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(n.x, n.y);
+      }
+      ctx.stroke();
+
+      // rods
+      ctx.strokeStyle = "rgba(56,189,248,0.6)";
+      ctx.lineWidth = 3.2;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(originX, originY);
+      ctx.lineTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+
+      // joints
+      ctx.fillStyle = "rgba(56,189,248,0.35)";
+      ctx.beginPath();
+      ctx.arc(originX, originY, 6, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#38bdf8";
+      ctx.beginPath();
+      ctx.arc(x1, y1, 10, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#f97316";
+      ctx.beginPath();
+      ctx.arc(x2, y2, 11, 0, Math.PI * 2);
+      ctx.fill();
+
+      // glow around second mass for interactivity hint
+      ctx.beginPath();
+      const gradient = ctx.createRadialGradient(x2, y2, 0, x2, y2, 32);
+      gradient.addColorStop(0, "rgba(249,115,22,0.45)");
+      gradient.addColorStop(1, "rgba(249,115,22,0)");
+      ctx.fillStyle = gradient;
+      ctx.arc(x2, y2, 32, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function loop(time) {
+      const dt = Math.min(0.033, (time - lastTime) / 1000 || 0.016);
+      lastTime = time;
+
+      if (state.running && !dragging) {
+        const fixedDt = 1 / 240;
+        let accumulator = dt;
+        while (accumulator > 0) {
+          const stepDt = Math.min(accumulator, fixedDt);
+          step(stepDt);
+          accumulator -= stepDt;
+        }
+
+        const { x2, y2 } = getPositions();
+        state.trail.push({ x: x2, y: y2 });
+        if (state.trail.length > state.trailMax) {
+          state.trail.splice(0, state.trail.length - state.trailMax);
+        }
+      }
+
+      render();
+
+      const energy = computeEnergy();
+      labels.energy.textContent = energy.toFixed(2);
+      updateLabels();
+
+      frameCount++;
+      fpsTimer += dt;
+      if (fpsTimer >= 0.5) {
+        labels.fps.textContent = Math.round(frameCount / fpsTimer);
+        fpsTimer = 0;
+        frameCount = 0;
+      }
+
+      requestAnimationFrame(loop);
+    }
+
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>

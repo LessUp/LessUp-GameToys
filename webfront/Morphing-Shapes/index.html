@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>形状变形动画 · 几何插值与路径渐变</title>
+  <style>
+    :root {
+      --bg: #04070c;
+      --panel: rgba(12, 16, 26, 0.82);
+      --text: #e7efff;
+      --muted: #9aa6be;
+      --accent: #38bdf8;
+      --accent-2: #f472b6;
+      --border: rgba(56, 189, 248, 0.22);
+      --radius: 18px;
+      --shadow: 0 20px 48px rgba(3, 6, 16, 0.65);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100vh;
+      font: 14px/1.5 "SF Pro Display", system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: radial-gradient(circle at 15% 20%, rgba(56,189,248,0.16), transparent 60%),
+                  radial-gradient(circle at 85% 80%, rgba(244,114,182,0.16), transparent 60%),
+                  linear-gradient(160deg, #05070f, #060a14);
+      color: var(--text);
+      padding: 32px clamp(12px, 6vw, 36px);
+      display: flex;
+      justify-content: center;
+    }
+
+    .layout {
+      width: min(1000px, 100%);
+      display: grid;
+      gap: 24px;
+    }
+
+    header {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(26px, 4vw, 34px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      max-width: 640px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border-radius: var(--radius);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      box-shadow: var(--shadow);
+      padding: 18px;
+      backdrop-filter: blur(12px);
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+    }
+
+    .control {
+      display: grid;
+      gap: 6px;
+    }
+
+    .control label {
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    input[type="range"] { accent-color: var(--accent); }
+    select {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      background: rgba(6, 10, 18, 0.85);
+      color: var(--text);
+      font-weight: 600;
+      outline: none;
+    }
+
+    .buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid rgba(56, 189, 248, 0.32);
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.5), rgba(244, 114, 182, 0.45));
+      color: var(--text);
+      font-weight: 600;
+      padding: 8px 16px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: transform 0.15s ease, border-color 0.2s ease;
+    }
+
+    button:hover { transform: translateY(-1px); border-color: rgba(56, 189, 248, 0.7); }
+    button:active { transform: translateY(0); }
+
+    .stage {
+      position: relative;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      min-height: 420px;
+      height: min(68vh, 560px);
+      background: radial-gradient(circle at 50% 25%, rgba(56,189,248,0.12), rgba(18,32,52,0.9) 45%, rgba(5,8,14,0.95) 90%);
+      box-shadow: inset 0 0 0 1px rgba(5,8,14,0.9);
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .palette {
+      display: flex;
+      gap: 8px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+
+    .swatch {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.25);
+      cursor: pointer;
+      box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .swatch.active {
+      transform: translateY(-2px) scale(1.05);
+      border-color: rgba(255,255,255,0.7);
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 8px;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <header>
+      <h1>形状变形动画</h1>
+      <p class="subtitle">通过参数化轮廓与弧度插值，实现多种几何形状之间的平滑过渡，同时支持渐变着色、旋转动画与噪声扰动。</p>
+    </header>
+
+    <div class="panel">
+      <div class="controls">
+        <div class="control">
+          <label>变形速度 <span id="labelSpeed">1.0</span></label>
+          <input id="speed" type="range" min="0.2" max="3" step="0.1" value="1.0" />
+        </div>
+        <div class="control">
+          <label>路径细分 <span id="labelResolution">180</span></label>
+          <input id="resolution" type="range" min="60" max="360" step="20" value="180" />
+        </div>
+        <div class="control">
+          <label>噪声幅度 <span id="labelNoise">0.00</span></label>
+          <input id="noise" type="range" min="0" max="0.5" step="0.01" value="0" />
+        </div>
+        <div class="control">
+          <label>旋转速度 <span id="labelRotation">12</span></label>
+          <input id="rotation" type="range" min="0" max="40" step="1" value="12" />
+        </div>
+        <div class="control">
+          <label>外发光强度 <span id="labelGlow">0.45</span></label>
+          <input id="glow" type="range" min="0" max="1" step="0.05" value="0.45" />
+        </div>
+        <div class="control">
+          <label>形状序列</label>
+          <select id="sequence">
+            <option value="default">圆 → 星形 → 三叶花 → 心形 → 齿轮</option>
+            <option value="organic">圆 → 气泡 → 云朵 → 花瓣 → 树叶</option>
+            <option value="tech">方形 → 菱形 → 八角星 → 二次曲线 → 旋涡</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="buttons">
+        <button id="toggle">暂停</button>
+        <button id="next">下一形状</button>
+        <button id="randomize">随机颜色</button>
+      </div>
+
+      <div class="palette" id="palette"></div>
+      <div class="hint">点击画布可锁定当前形状 · 滚轮缩放视图 · 按住空格键暂停。</div>
+    </div>
+
+    <div class="stage">
+      <canvas id="canvas"></canvas>
+    </div>
+  </div>
+
+  <script>
+    "use strict";
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    let width, height, dpr;
+
+    function resize() {
+      dpr = Math.max(1, window.devicePixelRatio || 1);
+      const rect = canvas.getBoundingClientRect();
+      width = Math.floor(rect.width);
+      height = Math.floor(rect.height);
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(dpr, dpr);
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    const params = {
+      speed: 1,
+      resolution: 180,
+      noise: 0,
+      rotation: 12,
+      glow: 0.45,
+      sequence: "default",
+      running: true,
+      zoom: 1,
+    };
+
+    const controls = {
+      speed: document.getElementById("speed"),
+      resolution: document.getElementById("resolution"),
+      noise: document.getElementById("noise"),
+      rotation: document.getElementById("rotation"),
+      glow: document.getElementById("glow"),
+      sequence: document.getElementById("sequence"),
+      toggle: document.getElementById("toggle"),
+      next: document.getElementById("next"),
+      randomize: document.getElementById("randomize"),
+      palette: document.getElementById("palette"),
+    };
+
+    const labels = {
+      speed: document.getElementById("labelSpeed"),
+      resolution: document.getElementById("labelResolution"),
+      noise: document.getElementById("labelNoise"),
+      rotation: document.getElementById("labelRotation"),
+      glow: document.getElementById("labelGlow"),
+    };
+
+    function updateLabels() {
+      labels.speed.textContent = params.speed.toFixed(1);
+      labels.resolution.textContent = params.resolution;
+      labels.noise.textContent = params.noise.toFixed(2);
+      labels.rotation.textContent = params.rotation;
+      labels.glow.textContent = params.glow.toFixed(2);
+    }
+    updateLabels();
+
+    Object.entries({
+      speed: (v) => params.speed = parseFloat(v),
+      resolution: (v) => params.resolution = parseInt(v, 10),
+      noise: (v) => params.noise = parseFloat(v),
+      rotation: (v) => params.rotation = parseFloat(v),
+      glow: (v) => params.glow = parseFloat(v),
+      sequence: (v) => { params.sequence = v; setSequence(v); },
+    }).forEach(([key, fn]) => {
+      controls[key].addEventListener("input", (e) => {
+        fn(e.target.value);
+        updateLabels();
+      });
+    });
+
+    controls.toggle.addEventListener("click", () => {
+      params.running = !params.running;
+      controls.toggle.textContent = params.running ? "暂停" : "继续";
+    });
+
+    controls.next.addEventListener("click", () => { advanceShape(); });
+    controls.randomize.addEventListener("click", () => { randomizePalette(); });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.code === "Space") {
+        params.running = !params.running;
+        controls.toggle.textContent = params.running ? "暂停" : "继续";
+        event.preventDefault();
+      }
+    });
+
+    canvas.addEventListener("click", () => {
+      params.running = !params.running;
+      controls.toggle.textContent = params.running ? "暂停" : "继续";
+    });
+
+    canvas.addEventListener("wheel", (event) => {
+      event.preventDefault();
+      const s = Math.exp(-event.deltaY * 0.001);
+      params.zoom = Math.max(0.6, Math.min(1.6, params.zoom * s));
+    }, { passive: false });
+
+    const palettes = [
+      ["#38bdf8", "#818cf8", "#f472b6", "#facc15"],
+      ["#22d3ee", "#0ea5e9", "#6366f1", "#14b8a6"],
+      ["#fb7185", "#f97316", "#fde047", "#22c55e"],
+      ["#c084fc", "#8b5cf6", "#f472b6", "#f97316"],
+    ];
+
+    let currentPalette = palettes[0].slice();
+    function randomizePalette() {
+      currentPalette = palettes[Math.floor(Math.random() * palettes.length)].slice();
+      renderPalette();
+    }
+
+    function renderPalette() {
+      controls.palette.innerHTML = "";
+      currentPalette.forEach((color, index) => {
+        const swatch = document.createElement("div");
+        swatch.className = "swatch" + (index === gradientIndex ? " active" : "");
+        swatch.style.background = color;
+        swatch.addEventListener("click", () => {
+          gradientIndex = index;
+          renderPalette();
+        });
+        controls.palette.appendChild(swatch);
+      });
+    }
+    let gradientIndex = 0;
+    renderPalette();
+
+    const sequences = {
+      default: ["circle", "star", "clover", "heart", "gear"],
+      organic: ["circle", "bubble", "cloud", "petal", "leaf"],
+      tech: ["square", "diamond", "octagon", "lemniscate", "spiral"],
+    };
+
+    let shapeSequence = sequences[params.sequence];
+    let currentIndex = 0;
+
+    function setSequence(name) {
+      shapeSequence = sequences[name];
+      currentIndex = 0;
+      prevShape = generateShape(shapeSequence[currentIndex]);
+      nextShape = generateShape(shapeSequence[(currentIndex + 1) % shapeSequence.length]);
+      morphT = 0;
+    }
+
+    function advanceShape() {
+      currentIndex = (currentIndex + 1) % shapeSequence.length;
+      prevShape = nextShape;
+      nextShape = generateShape(shapeSequence[(currentIndex + 1) % shapeSequence.length]);
+      morphT = 0;
+    }
+
+    const shapeGenerators = {
+      circle: (t) => ({ r: 1 }),
+      star: (t) => ({ r: 0.65 + 0.35 * Math.sin(t * 5) }),
+      clover: (t) => ({ r: 0.72 + 0.28 * Math.sin(3 * t) }),
+      heart: (t) => ({ r: 0.72 - 0.42 * Math.sin(t) * Math.sin(t * 0.5) }),
+      gear: (t) => ({ r: 0.6 + 0.25 * Math.sign(Math.sin(t * 8)) }),
+      bubble: (t) => ({ r: 0.9 + 0.08 * Math.sin(t * 2 + Math.sin(t)) }),
+      cloud: (t) => ({ r: 0.8 + 0.2 * Math.sin(t * 3 + Math.cos(t * 2)) }),
+      petal: (t) => ({ r: 0.5 + 0.38 * Math.cos(2 * t) ** 2 }),
+      leaf: (t) => ({ r: 0.5 + 0.45 * Math.sin(t) ** 2 }),
+      square: (t) => ({ r: 1 / Math.max(Math.abs(Math.cos(t)), Math.abs(Math.sin(t))) }),
+      diamond: (t) => ({ r: 0.9 / (Math.abs(Math.cos(t)) + Math.abs(Math.sin(t))) }),
+      octagon: (t) => ({ r: 0.75 / Math.max(Math.abs(Math.cos(t - Math.PI / 8)), Math.abs(Math.sin(t - Math.PI / 8))) }),
+      lemniscate: (t) => ({ r: Math.sqrt(Math.abs(Math.cos(2 * t))) }),
+      spiral: (t) => ({ r: 0.2 + 0.8 * (t / (Math.PI * 2)) }),
+    };
+
+    let prevShape = generateShape(shapeSequence[0]);
+    let nextShape = generateShape(shapeSequence[1]);
+    let morphT = 0;
+
+    function generateShape(name) {
+      const fn = shapeGenerators[name];
+      const points = [];
+      for (let i = 0; i < params.resolution; i++) {
+        const t = (i / params.resolution) * Math.PI * 2;
+        const { r } = fn(t);
+        points.push({ angle: t, radius: r });
+      }
+      return points;
+    }
+
+    function interpolateShapes(a, b, t) {
+      const result = [];
+      const count = Math.min(a.length, b.length);
+      for (let i = 0; i < count; i++) {
+        const ra = a[i].radius;
+        const rb = b[i].radius;
+        const angle = a[i].angle;
+        const radius = ra + (rb - ra) * easeInOut(t);
+        result.push({ angle, radius });
+      }
+      return result;
+    }
+
+    function easeInOut(x) {
+      return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+    }
+
+    function applyNoise(points, strength) {
+      if (strength <= 0) return points;
+      return points.map((p, i) => {
+        const noise = (Math.sin(p.angle * 3 + morphT * 2) + Math.sin(p.angle * 7 - morphT * 1.6 + i)) * 0.04;
+        return { angle: p.angle, radius: Math.max(0, p.radius + noise * strength) };
+      });
+    }
+
+    function toCartesian(points, scale) {
+      return points.map((p) => ({
+        x: Math.cos(p.angle) * p.radius * scale,
+        y: Math.sin(p.angle) * p.radius * scale,
+      }));
+    }
+
+    function renderShape(cartesian) {
+      ctx.beginPath();
+      for (let i = 0; i < cartesian.length; i++) {
+        const { x, y } = cartesian[i];
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+    }
+
+    let lastTime = performance.now();
+
+    function loop(time) {
+      const dt = Math.min(0.033, (time - lastTime) / 1000 || 0.016);
+      lastTime = time;
+
+      if (params.running) {
+        morphT += dt * params.speed * 0.4;
+        if (morphT >= 1) {
+          morphT %= 1;
+          advanceShape();
+        }
+      }
+
+      const interpolated = interpolateShapes(prevShape, nextShape, morphT);
+      const noisy = applyNoise(interpolated, params.noise);
+      const scale = Math.min(width, height) * 0.35 * params.zoom;
+      const rotated = noisy.map((p) => ({ angle: p.angle + params.rotation * morphT * 0.05, radius: p.radius }));
+      const cartesian = toCartesian(rotated, scale);
+
+      ctx.clearRect(0, 0, width, height);
+      ctx.save();
+      ctx.translate(width / 2, height / 2);
+
+      const gradient = ctx.createLinearGradient(-scale, -scale, scale, scale);
+      const colors = currentPalette;
+      gradient.addColorStop(0, hexToRgba(colors[gradientIndex % colors.length], 0.95));
+      gradient.addColorStop(0.5, hexToRgba(colors[(gradientIndex + 1) % colors.length], 0.75));
+      gradient.addColorStop(1, hexToRgba(colors[(gradientIndex + 2) % colors.length], 0.85));
+
+      renderShape(cartesian);
+      ctx.fillStyle = gradient;
+      ctx.fill();
+
+      ctx.globalCompositeOperation = "lighter";
+      ctx.shadowColor = hexToRgba(colors[(gradientIndex + 1) % colors.length], params.glow);
+      ctx.shadowBlur = 40 + params.glow * 40;
+      ctx.lineWidth = 2.2;
+      ctx.strokeStyle = hexToRgba(colors[(gradientIndex + 2) % colors.length], 0.6);
+      renderShape(cartesian);
+      ctx.stroke();
+
+      ctx.globalCompositeOperation = "source-over";
+      ctx.shadowBlur = 0;
+
+      ctx.restore();
+
+      requestAnimationFrame(loop);
+    }
+
+    function hexToRgba(hex, alpha) {
+      const c = hex.replace('#', '');
+      const bigint = parseInt(c, 16);
+      const r = (bigint >> 16) & 255;
+      const g = (bigint >> 8) & 255;
+      const b = bigint & 255;
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    setSequence(params.sequence);
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
