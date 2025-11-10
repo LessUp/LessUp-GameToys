@@ -1,0 +1,12 @@
+{
+  "title": "六边形小球自由落体",
+  "description": "在规则六边形容器中模拟小球的重力、碰撞与弹性反弹",
+  "category": "物理模拟",
+  "icon": "⬡",
+  "tags": [
+    { "label": "物理引擎", "variant": "physics" },
+    { "label": "交互式", "variant": "interactive" },
+    { "label": "Canvas" }
+  ],
+  "order": 10
+}

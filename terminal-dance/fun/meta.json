@@ -1,0 +1,11 @@
+{
+  "title": "旋转风扇",
+  "description": "以 ASCII 或 Emoji 帧模拟的旋转风扇，展示基本的终端逐帧动画。",
+  "category": "终端动画",
+  "icon": "🌀",
+  "tags": ["Go", "Rust", "动画"],
+  "parameters": [
+    { "name": "emoji", "type": "bool", "description": "是否使用 Emoji 风格", "default": "false" },
+    { "name": "speed", "type": "int(ms)", "description": "每帧延迟，数值越小越快", "default": "80" }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "title": "河流流动",
+  "description": "在终端中用波浪字符或 Emoji 展示流动的河道动画，可调节宽高与河宽。",
+  "category": "终端动画",
+  "icon": "🌊",
+  "tags": ["Go", "Rust", "模拟"],
+  "parameters": [
+    { "name": "emoji", "type": "bool", "description": "是否使用 Emoji 风格", "default": "false" },
+    { "name": "speed", "type": "int(ms)", "description": "每帧延迟，数值越小越快", "default": "60" },
+    { "name": "w", "type": "int", "description": "终端宽度", "default": "80" },
+    { "name": "h", "type": "int", "description": "终端高度", "default": "24" },
+    { "name": "rw", "type": "int", "description": "河道宽度 (字符行数)", "default": "8" }
+  ]
+}

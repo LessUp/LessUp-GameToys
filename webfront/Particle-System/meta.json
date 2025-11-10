@@ -1,0 +1,12 @@
+{
+  "title": "粒子系统引擎",
+  "description": "可配置的粒子系统，支持重力、风力、摩擦力等多种力场",
+  "category": "物理模拟",
+  "icon": "✨",
+  "tags": [
+    { "label": "粒子物理", "variant": "physics" },
+    { "label": "力场模拟", "variant": "interactive" },
+    { "label": "Canvas" }
+  ],
+  "order": 30
+}

@@ -1,8 +1,86 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
+#!/usr/bin/env python3
+"""Generate webfront/index.html from module metadata."""
+from __future__ import annotations
+
+import json
+from collections import defaultdict
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+WEBFRONT_DIR = ROOT / "webfront"
+INDEX_PATH = WEBFRONT_DIR / "index.html"
+
+CATEGORY_ORDER = {
+    "物理模拟": 10,
+    "视觉特效": 20,
+    "3D 交互": 30,
+    "互动小游戏": 40,
+}
+
+def load_metadata() -> list[dict]:
+    modules = []
+    for meta_path in sorted(WEBFRONT_DIR.glob("*/meta.json")):
+        with meta_path.open("r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        required = ["title", "description", "category", "icon"]
+        missing = [key for key in required if not data.get(key)]
+        if missing:
+            raise SystemExit(f"Missing keys {missing} in {meta_path}")
+        data.setdefault("tags", [])
+        data.setdefault("order", 0)
+        data["slug"] = meta_path.parent.name
+        modules.append(data)
+    return modules
+
+def build_cards(modules: list[dict]) -> str:
+    grouped: dict[str, list[dict]] = defaultdict(list)
+    for module in modules:
+        grouped[module["category"]].append(module)
+
+
+    cards_output: list[str] = []
+    for category in sorted(grouped.keys(), key=lambda c: (CATEGORY_ORDER.get(c, 999), c)):
+        cards_output.append(f"    <h2 class=\"category-title\">{category}</h2>")
+        cards_output.append("    <div class=\"grid\">")
+        for module in sorted(grouped[category], key=lambda m: (int(m.get("order", 0)), m["title"])):
+            tags_lines = []
+            for tag in module.get("tags", []):
+                label = tag["label"] if isinstance(tag, dict) else str(tag)
+                if isinstance(tag, dict):
+                    variant = tag.get("variant", "").strip()
+                else:
+                    variant = ""
+                class_name = "tag"
+                if variant:
+                    class_name += f" {variant}"
+                tags_lines.append(f"          <span class=\"{class_name}\">{label}</span>")
+            if tags_lines:
+                tags_block = ["          <div class=\"card-tags\">"] + tags_lines + ["          </div>"]
+            else:
+                tags_block = ["          <div class=\"card-tags\"></div>"]
+            card_lines = [
+                f"      <a href=\"{module['slug']}/\" class=\"card\">",
+                "        <div class=\"card-preview\">",
+                f"          <div class=\"card-icon\">{module['icon']}</div>",
+                "        </div>",
+                "        <div class=\"card-content\">",
+                f"          <h3 class=\"card-title\">{module['title']}</h3>",
+                f"          <p class=\"card-description\">{module['description']}</p>",
+                *tags_block,
+                "        </div>",
+                "      </a>",
+            ]
+            cards_output.append("\n".join(card_lines))
+            cards_output.append("")
+        cards_output.append("    </div>")
+        cards_output.append("")
+    return "\n".join(cards_output).rstrip()
+
+HTML_TEMPLATE = """<!DOCTYPE html>
+<html lang=\"zh-CN\">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset=\"utf-8\" />
+  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
   <title>Webfront · 交互式前端演示集</title>
   <style>
     :root {
@@ -296,210 +374,20 @@
 </head>
 <body>
   <!-- Auto-generated via tools/sync_webfront_index.py -->
-  <canvas class="bg-canvas" id="bgCanvas"></canvas>
+  <canvas class=\"bg-canvas\" id=\"bgCanvas\"></canvas>
 
-  <div class="container">
+  <div class=\"container\">
     <header>
       <h1>Webfront</h1>
-      <p class="subtitle">探索交互式前端演示 · 物理模拟 · 视觉特效 · 创意动画</p>
-      <div class="badge">
+      <p class=\"subtitle\">探索交互式前端演示 · 物理模拟 · 视觉特效 · 创意动画</p>
+      <div class=\"badge\">
         <span>纯前端实现</span>
         <span>·</span>
         <span>无需构建工具</span>
       </div>
     </header>
 
-    <h2 class="category-title">物理模拟</h2>
-    <div class="grid">
-      <a href="Free-Fall-of-Small-Balls-in-a-Hexagon/" class="card">
-        <div class="card-preview">
-          <div class="card-icon">⬡</div>
-        </div>
-        <div class="card-content">
-          <h3 class="card-title">六边形小球自由落体</h3>
-          <p class="card-description">在规则六边形容器中模拟小球的重力、碰撞与弹性反弹</p>
-          <div class="card-tags">
-          <span class="tag physics">物理引擎</span>
-          <span class="tag interactive">交互式</span>
-          <span class="tag">Canvas</span>
-          </div>
-        </div>
-      </a>
-
-      <a href="Double-Pendulum/" class="card">
-        <div class="card-preview">
-          <div class="card-icon">🎭</div>
-        </div>
-        <div class="card-content">
-          <h3 class="card-title">双摆混沌系统</h3>
-          <p class="card-description">经典双摆物理系统，展示混沌运动与轨迹追踪</p>
-          <div class="card-tags">
-          <span class="tag physics">混沌理论</span>
-          <span class="tag animation">轨迹追踪</span>
-          <span class="tag">Canvas</span>
-          </div>
-        </div>
-      </a>
-
-      <a href="Particle-System/" class="card">
-        <div class="card-preview">
-          <div class="card-icon">✨</div>
-        </div>
-        <div class="card-content">
-          <h3 class="card-title">粒子系统引擎</h3>
-          <p class="card-description">可配置的粒子系统，支持重力、风力、摩擦力等多种力场</p>
-          <div class="card-tags">
-          <span class="tag physics">粒子物理</span>
-          <span class="tag interactive">力场模拟</span>
-          <span class="tag">Canvas</span>
-          </div>
-        </div>
-      </a>
-
-      <a href="Wave-Simulation/" class="card">
-        <div class="card-preview">
-          <div class="card-icon">🌊</div>
-        </div>
-        <div class="card-content">
-          <h3 class="card-title">波纹与流体模拟</h3>
-          <p class="card-description">交互式水波传播与流体动力学可视化</p>
-          <div class="card-tags">
-          <span class="tag physics">流体力学</span>
-          <span class="tag interactive">交互式</span>
-          <span class="tag">Canvas</span>
-          </div>
-        </div>
-      </a>
-
-      <a href="Spring-Physics/" class="card">
-        <div class="card-preview">
-          <div class="card-icon">🔗</div>
-        </div>
-        <div class="card-content">
-          <h3 class="card-title">弹簧物理系统</h3>
-          <p class="card-description">可交互的弹簧-质点系统，模拟布料与软体动力学</p>
-          <div class="card-tags">
-          <span class="tag physics">弹簧力学</span>
-          <span class="tag interactive">拖拽交互</span>
-          <span class="tag">Canvas</span>
-          </div>
-        </div>
-      </a>
-
-    </div>
-
-    <h2 class="category-title">视觉特效</h2>
-    <div class="grid">
-      <a href="Particle-Effects/" class="card">
-        <div class="card-preview">
-          <div class="card-icon">💥</div>
-        </div>
-        <div class="card-content">
-          <h3 class="card-title">粒子爆炸特效</h3>
-          <p class="card-description">鼠标交互触发的烟花、爆炸与粒子轨迹效果</p>
-          <div class="card-tags">
-          <span class="tag animation">粒子动画</span>
-          <span class="tag interactive">鼠标交互</span>
-          <span class="tag">Canvas</span>
-          </div>
-        </div>
-      </a>
-
-      <a href="Morphing-Shapes/" class="card">
-        <div class="card-preview">
-          <div class="card-icon">🔷</div>
-        </div>
-        <div class="card-content">
-          <h3 class="card-title">形状变形动画</h3>
-          <p class="card-description">几何图形的平滑变形与过渡动画</p>
-          <div class="card-tags">
-          <span class="tag animation">形状插值</span>
-          <span class="tag">SVG/Canvas</span>
-          </div>
-        </div>
-      </a>
-
-      <a href="3D-Transforms/" class="card">
-        <div class="card-preview">
-          <div class="card-icon">🎲</div>
-        </div>
-        <div class="card-content">
-          <h3 class="card-title">3D 图形变换</h3>
-          <p class="card-description">纯 CSS 与 Canvas 的 3D 旋转、透视与光影效果</p>
-          <div class="card-tags">
-          <span class="tag animation">3D 变换</span>
-          <span class="tag">CSS 3D</span>
-          <span class="tag">Canvas</span>
-          </div>
-        </div>
-      </a>
-
-      <a href="weather/" class="card">
-        <div class="card-preview">
-          <div class="card-icon">🌤️</div>
-        </div>
-        <div class="card-content">
-          <h3 class="card-title">动画天气卡片</h3>
-          <p class="card-description">精美的天气状态卡片，含日出、风、雨、雪等动画效果</p>
-          <div class="card-tags">
-          <span class="tag animation">CSS 动画</span>
-          <span class="tag">关键帧</span>
-          </div>
-        </div>
-      </a>
-
-    </div>
-
-    <h2 class="category-title">3D 交互</h2>
-    <div class="grid">
-      <a href="Cube-Simulation/" class="card">
-        <div class="card-preview">
-          <div class="card-icon">🎨</div>
-        </div>
-        <div class="card-content">
-          <h3 class="card-title">3×3 魔方模拟器</h3>
-          <p class="card-description">完整的 3D 魔方，支持各种旋转操作、打乱与视角控制</p>
-          <div class="card-tags">
-          <span class="tag interactive">3D 交互</span>
-          <span class="tag">CSS 3D</span>
-          <span class="tag animation">变换动画</span>
-          </div>
-        </div>
-      </a>
-
-    </div>
-
-    <h2 class="category-title">互动小游戏</h2>
-    <div class="grid">
-      <a href="2048/" class="card">
-        <div class="card-preview">
-          <div class="card-icon">🔢</div>
-        </div>
-        <div class="card-content">
-          <h3 class="card-title">2048 益智游戏</h3>
-          <p class="card-description">经典 2048 数字合并玩法，支持键盘与触控操作</p>
-          <div class="card-tags">
-          <span class="tag game">益智合并</span>
-          <span class="tag">触控支持</span>
-          </div>
-        </div>
-      </a>
-
-      <a href="snake/" class="card">
-        <div class="card-preview">
-          <div class="card-icon">🐍</div>
-        </div>
-        <div class="card-content">
-          <h3 class="card-title">霓虹贪吃蛇</h3>
-          <p class="card-description">复古霓虹风格的贪吃蛇小游戏，兼容键盘与触摸操控</p>
-          <div class="card-tags">
-          <span class="tag game">街机玩法</span>
-          <span class="tag">Canvas</span>
-          </div>
-        </div>
-      </a>
-
-    </div>
+{{CARDS}}
 
     <footer>
       <p>CodingToys · Webfront · 保持简单（KISS）· 开箱即用</p>
@@ -574,4 +462,14 @@
   </script>
 </body>
 </html>
+"""
 
+def main() -> None:
+    modules = load_metadata()
+    cards_html = build_cards(modules)
+    html = HTML_TEMPLATE.replace("{{CARDS}}", cards_html)
+    INDEX_PATH.write_text(html + "\n", encoding="utf-8")
+    print(f"Updated {INDEX_PATH.relative_to(ROOT)} with {len(modules)} modules.")
+
+if __name__ == "__main__":
+    main()
