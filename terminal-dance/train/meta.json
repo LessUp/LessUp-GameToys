@@ -1,0 +1,12 @@
+{
+  "title": "终端小火车",
+  "description": "穿梭在终端中的列车动画，可调节车厢数量、帧率与 Emoji 外观。",
+  "category": "终端动画",
+  "icon": "🚂",
+  "tags": ["Go", "Rust", "动画"],
+  "parameters": [
+    { "name": "emoji", "type": "bool", "description": "是否使用 Emoji 风格", "default": "false" },
+    { "name": "speed", "type": "int(fps)", "description": "帧率 (1-60)", "default": "12" },
+    { "name": "cars", "type": "int", "description": "车厢数量 (0-20)", "default": "3" }
+  ]
+}

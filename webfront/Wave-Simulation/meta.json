@@ -1,0 +1,12 @@
+{
+  "title": "波纹与流体模拟",
+  "description": "交互式水波传播与流体动力学可视化",
+  "category": "物理模拟",
+  "icon": "🌊",
+  "tags": [
+    { "label": "流体力学", "variant": "physics" },
+    { "label": "交互式", "variant": "interactive" },
+    { "label": "Canvas" }
+  ],
+  "order": 40
+}

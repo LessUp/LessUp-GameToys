@@ -1,0 +1,12 @@
+{
+  "title": "粒子爆炸特效",
+  "description": "鼠标交互触发的烟花、爆炸与粒子轨迹效果",
+  "category": "视觉特效",
+  "icon": "💥",
+  "tags": [
+    { "label": "粒子动画", "variant": "animation" },
+    { "label": "鼠标交互", "variant": "interactive" },
+    { "label": "Canvas" }
+  ],
+  "order": 10
+}

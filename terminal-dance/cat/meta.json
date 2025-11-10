@@ -1,0 +1,12 @@
+{
+  "title": "跑动小猫",
+  "description": "终端中奔跑的小猫动画，支持 ASCII 与 Emoji 渲染，并可设置可用宽度。",
+  "category": "终端动画",
+  "icon": "🐈",
+  "tags": ["Go", "Rust", "动画"],
+  "parameters": [
+    { "name": "emoji", "type": "bool", "description": "是否使用 Emoji 风格", "default": "false" },
+    { "name": "speed", "type": "int(ms)", "description": "每帧延迟，数值越小越快", "default": "80" },
+    { "name": "w", "type": "int", "description": "渲染宽度，默认读取终端列数", "default": "80" }
+  ]
+}

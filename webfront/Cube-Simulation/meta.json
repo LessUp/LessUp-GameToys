@@ -1,0 +1,12 @@
+{
+  "title": "3×3 魔方模拟器",
+  "description": "完整的 3D 魔方，支持各种旋转操作、打乱与视角控制",
+  "category": "3D 交互",
+  "icon": "🎨",
+  "tags": [
+    { "label": "3D 交互", "variant": "interactive" },
+    { "label": "CSS 3D" },
+    { "label": "变换动画", "variant": "animation" }
+  ],
+  "order": 10
+}

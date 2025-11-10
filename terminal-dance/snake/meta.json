@@ -1,0 +1,13 @@
+{
+  "title": "终端贪吃蛇",
+  "description": "复古风格的贪吃蛇，支持键盘控制与 Emoji 渲染，含暂停前台的得分显示。",
+  "category": "终端小游戏",
+  "icon": "🐍",
+  "tags": ["Go", "Rust", "游戏"],
+  "parameters": [
+    { "name": "emoji", "type": "bool", "description": "是否使用 Emoji 风格", "default": "false" },
+    { "name": "speed", "type": "int(ms)", "description": "游戏速度，数值越小越快", "default": "150" },
+    { "name": "w", "type": "int", "description": "游戏区域宽度", "default": "20" },
+    { "name": "h", "type": "int", "description": "游戏区域高度", "default": "10" }
+  ]
+}

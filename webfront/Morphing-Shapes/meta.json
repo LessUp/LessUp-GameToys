@@ -1,0 +1,11 @@
+{
+  "title": "形状变形动画",
+  "description": "几何图形的平滑变形与过渡动画",
+  "category": "视觉特效",
+  "icon": "🔷",
+  "tags": [
+    { "label": "形状插值", "variant": "animation" },
+    { "label": "SVG/Canvas" }
+  ],
+  "order": 20
+}
