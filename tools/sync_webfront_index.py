@@ -2,12 +2,16 @@
 """Generate webfront/index.html from module metadata."""
 from __future__ import annotations
 
+import argparse
 import json
 from collections import defaultdict
+from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WEBFRONT_DIR = ROOT / "webfront"
+TERMINAL_DANCE_DIR = ROOT / "terminal-dance"
+CHANGELOG_DIR = ROOT / "changelog"
 INDEX_PATH = WEBFRONT_DIR / "index.html"
 
 CATEGORY_ORDER = {
@@ -17,17 +21,91 @@ CATEGORY_ORDER = {
     "互动小游戏": 40,
 }
 
-def load_metadata() -> list[dict]:
-    modules = []
-    for meta_path in sorted(WEBFRONT_DIR.glob("*/meta.json")):
+def _ensure_tags(meta_path: Path, data: dict) -> list:
+    tags = data.get("tags", [])
+    if not isinstance(tags, list):
+        raise SystemExit(f"Field 'tags' must be a list in {meta_path}")
+    for idx, tag in enumerate(tags):
+        if isinstance(tag, dict):
+            if not tag.get("label"):
+                raise SystemExit(
+                    f"Tag #{idx} in {meta_path} must contain a non-empty 'label'"
+                )
+            if tag.get("variant") is not None and not isinstance(tag.get("variant"), str):
+                raise SystemExit(
+                    f"Tag #{idx} in {meta_path} has an invalid 'variant' value"
+                )
+        elif not isinstance(tag, str):
+            raise SystemExit(
+                f"Tag #{idx} in {meta_path} must be a string or an object with 'label'"
+            )
+    return tags
+
+
+def _ensure_order(meta_path: Path, data: dict) -> int:
+    if "order" not in data:
+        raise SystemExit(f"Missing 'order' field in {meta_path}")
+    try:
+        return int(data["order"])
+    except (TypeError, ValueError) as exc:
+        raise SystemExit(f"Field 'order' must be an integer in {meta_path}") from exc
+
+
+def _ensure_updated_at(meta_path: Path, data: dict) -> date:
+    updated_at = data.get("updated_at")
+    if not updated_at:
+        raise SystemExit(f"Missing 'updated_at' in {meta_path}")
+    try:
+        return date.fromisoformat(str(updated_at))
+    except ValueError as exc:
+        raise SystemExit(
+            f"Field 'updated_at' must be an ISO date (YYYY-MM-DD) in {meta_path}"
+        ) from exc
+
+
+def _ensure_changelog(meta_path: Path, data: dict, updated: date) -> list[str]:
+    refs = data.get("changelog")
+    if not refs or not isinstance(refs, list):
+        raise SystemExit(f"Field 'changelog' must be a non-empty list in {meta_path}")
+    resolved: list[str] = []
+    for idx, ref in enumerate(refs):
+        if not isinstance(ref, str):
+            raise SystemExit(
+                f"Changelog reference #{idx} in {meta_path} must be a string"
+            )
+        changelog_path = CHANGELOG_DIR / ref
+        if not changelog_path.is_file():
+            raise SystemExit(
+                f"Changelog reference '{ref}' in {meta_path} does not exist"
+            )
+        date_prefix = ref.split("_", 1)[0]
+        try:
+            entry_date = date.fromisoformat(date_prefix)
+        except ValueError as exc:
+            raise SystemExit(
+                f"Changelog '{ref}' referenced by {meta_path} is missing a valid date prefix"
+            ) from exc
+        if entry_date < updated:
+            raise SystemExit(
+                f"Changelog '{ref}' predates the declared 'updated_at' in {meta_path}"
+            )
+        resolved.append(ref)
+    return resolved
+
+
+def load_metadata_dir(base_dir: Path) -> list[dict]:
+    modules: list[dict] = []
+    for meta_path in sorted(base_dir.glob("*/meta.json")):
         with meta_path.open("r", encoding="utf-8") as fh:
             data = json.load(fh)
         required = ["title", "description", "category", "icon"]
         missing = [key for key in required if not data.get(key)]
         if missing:
             raise SystemExit(f"Missing keys {missing} in {meta_path}")
-        data.setdefault("tags", [])
-        data.setdefault("order", 0)
+        data["tags"] = _ensure_tags(meta_path, data)
+        data["order"] = _ensure_order(meta_path, data)
+        updated = _ensure_updated_at(meta_path, data)
+        data["changelog"] = _ensure_changelog(meta_path, data, updated)
         data["slug"] = meta_path.parent.name
         modules.append(data)
     return modules
@@ -465,11 +543,43 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 """
 
 def main() -> None:
-    modules = load_metadata()
-    cards_html = build_cards(modules)
+    parser = argparse.ArgumentParser(
+        description="Synchronise webfront index and validate module metadata."
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Validate metadata and ensure index.html is up to date without writing.",
+    )
+    args = parser.parse_args()
+
+    webfront_modules = load_metadata_dir(WEBFRONT_DIR)
+    # Validate terminal-dance metadata even though it does not feed the index.
+    load_metadata_dir(TERMINAL_DANCE_DIR)
+
+    cards_html = build_cards(webfront_modules)
     html = HTML_TEMPLATE.replace("{{CARDS}}", cards_html)
-    INDEX_PATH.write_text(html + "\n", encoding="utf-8")
-    print(f"Updated {INDEX_PATH.relative_to(ROOT)} with {len(modules)} modules.")
+    expected_html = html + "\n"
+
+    if args.check:
+        if not INDEX_PATH.exists():
+            raise SystemExit(
+                f"Missing generated file: {INDEX_PATH.relative_to(ROOT)}"
+            )
+        current = INDEX_PATH.read_text(encoding="utf-8")
+        if current != expected_html:
+            raise SystemExit(
+                "webfront/index.html is out of sync. Run 'python tools/sync_webfront_index.py'."
+            )
+        print(
+            f"Metadata validation passed for {len(webfront_modules)} web modules "
+            "and terminal catalog. Index is up to date."
+        )
+    else:
+        INDEX_PATH.write_text(expected_html, encoding="utf-8")
+        print(
+            f"Updated {INDEX_PATH.relative_to(ROOT)} with {len(webfront_modules)} modules."
+        )
 
 if __name__ == "__main__":
     main()

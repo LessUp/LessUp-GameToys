@@ -4,9 +4,21 @@
   "category": "物理模拟",
   "icon": "✨",
   "tags": [
-    { "label": "粒子物理", "variant": "physics" },
-    { "label": "力场模拟", "variant": "interactive" },
-    { "label": "Canvas" }
+    {
+      "label": "粒子物理",
+      "variant": "physics"
+    },
+    {
+      "label": "力场模拟",
+      "variant": "interactive"
+    },
+    {
+      "label": "Canvas"
+    }
   ],
-  "order": 30
+  "order": 30,
+  "updated_at": "2025-10-24",
+  "changelog": [
+    "2025-10-24_metadata_validation_and_template.md"
+  ]
 }
