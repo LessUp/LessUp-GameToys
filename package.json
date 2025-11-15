@@ -1,0 +1,18 @@
+{
+  "name": "lessup-gametoys",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "prettier": "prettier --check \"webfront/**/*.{html,css,scss,js,jsx,ts,tsx,json,md}\" \"tools/**/*.{js,jsx,ts,tsx,json,md}\" --no-error-on-unmatched-pattern",
+    "prettier:fix": "prettier --write \"webfront/**/*.{html,css,scss,js,jsx,ts,tsx,json,md}\" \"tools/**/*.{js,jsx,ts,tsx,json,md}\" --no-error-on-unmatched-pattern",
+    "eslint": "eslint --ext .js,.jsx,.ts,.tsx webfront tools --no-error-on-unmatched-pattern",
+    "black": "black --check tools",
+    "black:fix": "black tools",
+    "ruff": "ruff check tools",
+    "ruff:fix": "ruff check --fix tools"
+  },
+  "devDependencies": {
+    "eslint": "^8.56.0",
+    "prettier": "^3.2.5"
+  }
+}
