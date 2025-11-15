@@ -4,9 +4,21 @@
   "category": "3D 交互",
   "icon": "🎨",
   "tags": [
-    { "label": "3D 交互", "variant": "interactive" },
-    { "label": "CSS 3D" },
-    { "label": "变换动画", "variant": "animation" }
+    {
+      "label": "3D 交互",
+      "variant": "interactive"
+    },
+    {
+      "label": "CSS 3D"
+    },
+    {
+      "label": "变换动画",
+      "variant": "animation"
+    }
   ],
-  "order": 10
+  "order": 10,
+  "updated_at": "2025-10-24",
+  "changelog": [
+    "2025-10-24_metadata_validation_and_template.md"
+  ]
 }

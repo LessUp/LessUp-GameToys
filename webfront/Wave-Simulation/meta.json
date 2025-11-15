@@ -4,9 +4,21 @@
   "category": "物理模拟",
   "icon": "🌊",
   "tags": [
-    { "label": "流体力学", "variant": "physics" },
-    { "label": "交互式", "variant": "interactive" },
-    { "label": "Canvas" }
+    {
+      "label": "流体力学",
+      "variant": "physics"
+    },
+    {
+      "label": "交互式",
+      "variant": "interactive"
+    },
+    {
+      "label": "Canvas"
+    }
   ],
-  "order": 40
+  "order": 40,
+  "updated_at": "2025-10-24",
+  "changelog": [
+    "2025-10-24_metadata_validation_and_template.md"
+  ]
 }

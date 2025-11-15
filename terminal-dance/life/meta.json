@@ -3,12 +3,46 @@
   "description": "经典生命游戏的终端版本，支持 Emoji 渲染与初始密度调节。",
   "category": "终端动画",
   "icon": "🧬",
-  "tags": ["Go", "Rust", "模拟"],
+  "tags": [
+    "Go",
+    "Rust",
+    "模拟"
+  ],
   "parameters": [
-    { "name": "emoji", "type": "bool", "description": "是否使用 Emoji 风格", "default": "false" },
-    { "name": "speed", "type": "int(ms)", "description": "每帧延迟，数值越小越快", "default": "100" },
-    { "name": "w", "type": "int", "description": "世界宽度", "default": "40" },
-    { "name": "h", "type": "int", "description": "世界高度", "default": "20" },
-    { "name": "density", "type": "float", "description": "初始细胞密度 (0.0-1.0)", "default": "0.3" }
+    {
+      "name": "emoji",
+      "type": "bool",
+      "description": "是否使用 Emoji 风格",
+      "default": "false"
+    },
+    {
+      "name": "speed",
+      "type": "int(ms)",
+      "description": "每帧延迟，数值越小越快",
+      "default": "100"
+    },
+    {
+      "name": "w",
+      "type": "int",
+      "description": "世界宽度",
+      "default": "40"
+    },
+    {
+      "name": "h",
+      "type": "int",
+      "description": "世界高度",
+      "default": "20"
+    },
+    {
+      "name": "density",
+      "type": "float",
+      "description": "初始细胞密度 (0.0-1.0)",
+      "default": "0.3"
+    }
+  ],
+  "order": 30,
+  "updated_at": "2025-10-24",
+  "changelog": [
+    "2025-10-24_metadata_validation_and_template.md"
   ]
 }

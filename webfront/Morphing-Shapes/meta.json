@@ -4,8 +4,17 @@
   "category": "视觉特效",
   "icon": "🔷",
   "tags": [
-    { "label": "形状插值", "variant": "animation" },
-    { "label": "SVG/Canvas" }
+    {
+      "label": "形状插值",
+      "variant": "animation"
+    },
+    {
+      "label": "SVG/Canvas"
+    }
   ],
-  "order": 20
+  "order": 20,
+  "updated_at": "2025-10-24",
+  "changelog": [
+    "2025-10-24_metadata_validation_and_template.md"
+  ]
 }

@@ -4,8 +4,17 @@
   "category": "互动小游戏",
   "icon": "🐍",
   "tags": [
-    { "label": "街机玩法", "variant": "game" },
-    { "label": "Canvas" }
+    {
+      "label": "街机玩法",
+      "variant": "game"
+    },
+    {
+      "label": "Canvas"
+    }
   ],
-  "order": 20
+  "order": 20,
+  "updated_at": "2025-10-24",
+  "changelog": [
+    "2025-10-24_metadata_validation_and_template.md"
+  ]
 }

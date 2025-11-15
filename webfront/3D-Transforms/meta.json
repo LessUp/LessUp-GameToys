@@ -4,9 +4,20 @@
   "category": "视觉特效",
   "icon": "🎲",
   "tags": [
-    { "label": "3D 变换", "variant": "animation" },
-    { "label": "CSS 3D" },
-    { "label": "Canvas" }
+    {
+      "label": "3D 变换",
+      "variant": "animation"
+    },
+    {
+      "label": "CSS 3D"
+    },
+    {
+      "label": "Canvas"
+    }
   ],
-  "order": 30
+  "order": 30,
+  "updated_at": "2025-10-24",
+  "changelog": [
+    "2025-10-24_metadata_validation_and_template.md"
+  ]
 }

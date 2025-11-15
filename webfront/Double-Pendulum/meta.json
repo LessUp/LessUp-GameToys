@@ -4,9 +4,21 @@
   "category": "物理模拟",
   "icon": "🎭",
   "tags": [
-    { "label": "混沌理论", "variant": "physics" },
-    { "label": "轨迹追踪", "variant": "animation" },
-    { "label": "Canvas" }
+    {
+      "label": "混沌理论",
+      "variant": "physics"
+    },
+    {
+      "label": "轨迹追踪",
+      "variant": "animation"
+    },
+    {
+      "label": "Canvas"
+    }
   ],
-  "order": 20
+  "order": 20,
+  "updated_at": "2025-10-24",
+  "changelog": [
+    "2025-10-24_metadata_validation_and_template.md"
+  ]
 }
