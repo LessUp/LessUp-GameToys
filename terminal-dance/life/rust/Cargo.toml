@@ -7,3 +7,10 @@ edition = "2021"
 clap = { version = "4", features = ["derive"] }
 ctrlc = "3"
 rand = "0.8"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "life_board"
+harness = false

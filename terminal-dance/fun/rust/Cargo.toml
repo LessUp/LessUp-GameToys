@@ -6,3 +6,10 @@ edition = "2021"
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 ctrlc = "3"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "fan"
+harness = false
