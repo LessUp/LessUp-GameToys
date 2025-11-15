@@ -12,16 +12,21 @@
 
 每个目录均包含 `meta.json`，用于记录模块介绍、图标以及支持的命令行参数。
 
+### 配置入口
+
+- Go 版本：每个模块的可调节参数统一收敛在 `go/config` 包中，提供 `Default()` 与 `FromCLI(args []string)` 用于默认值与命令行覆盖。
+- Rust 版本：对应模块暴露 `config::Config` 结构体，并通过 `Config::parse()` 与 `sanitized()` 统一解析、裁剪参数。
+
 ## 统一参数规范
 | 参数 | Go 标记 | Rust 标记 | 默认值 | 适用模块 | 说明 |
 | --- | --- | --- | --- | --- | --- |
 | `emoji` | `-emoji` | `--emoji` | `false` | 全部 | 是否使用 Emoji 渲染帧。 |
-| `speed` | `-speed` | `--speed` | 模块各异 | 全部 | 每帧延迟（毫秒）或帧率，数值越小越快。 |
+| `speed` | `-speed` | `--speed` | 模块各异 | 全部 | 每帧延迟（毫秒）或帧率，数值越小越快；Go/Rust 默认值由 `config` 模块集中维护。 |
 | `w` | `-w` | `--w` | 模块各异 | `cat`、`snake`、`life`、`river` | 渲染宽度或世界宽度。缺省读取终端列数。 |
 | `h` | `-h` | `--h` | 模块各异 | `snake`、`life`、`river` | 渲染高度或世界高度。 |
 | `density` | `-density` | `--density` | `0.3` | `life` | 初始细胞密度（0.0-1.0）。 |
 | `rw` | `-rw` | `-rw` | `8` | `river` | 河道宽度（字符行数）。Emoji 模式会自动收窄。 |
-| `cars` | `-cars` | `--cars` | `3` | `train` | 车厢数量（0-20）。 |
+| `cars` | `-cars` | `--cars` | `3` | `train` | 车厢数量（0-20），取值超出范围会直接报错提示。 |
 
 参数默认值与更多说明请参阅各模块的 `meta.json`。若新增参数，请同步更新表格保持一致。
 
@@ -101,3 +106,8 @@ cargo run --release -- --emoji=false --speed=12 --cars=3
 ## 备注
 - 终端与字体对 Emoji 宽度的处理不完全一致，排版可能略有差异。
 - 保持 KISS 设计，尽量少依赖，跨平台 ANSI 控制序列（在 Linux 下表现良好）。
+## 测试与基准
+
+- Go：各模块均拆分出 `Run(cfg config.Config)` 入口，使用 `go test ./...` 触发的单元测试覆盖核心算法，并可通过 `go test -bench .` 获取基准数据。
+- Rust：`cargo test` 会运行 `lib.rs` 中的单元测试；使用 `cargo bench` 可执行 `criterion` 基准测试以评估迭代性能。
+
